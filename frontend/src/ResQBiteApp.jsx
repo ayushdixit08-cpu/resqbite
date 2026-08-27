@@ -17,11 +17,12 @@ import {
 
 /* ============================================================
    BACKEND API CLIENT
-   Talks to the ResQBite REST API (Node.js + Express + SQLite —
-   see the downloadable backend project). Point RESQBITE_API_URL
-   at your deployed backend to go live.
+   Talks to the ResQBite REST API (Node.js + Express + Prisma +
+   PostgreSQL — see the downloadable backend project). Point
+   RESQBITE_API_URL at your deployed backend to go live; until
+   then, calls fail quietly and the UI falls back to sample data.
 ============================================================= */
-const RESQBITE_API_URL = "http://localhost:5000/api";
+const RESQBITE_API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Lightweight in-memory response cache, keyed by request path. Lives for
 // the SPA session (module scope, not component state) so navigating away
@@ -31,66 +32,50 @@ const RESQBITE_API_URL = "http://localhost:5000/api";
 const apiResultCache = new Map(); // path -> resolved data
 const apiInFlight = new Map();    // path -> in-progress promise
 
-// Reads the JWT saved at login. Login stores it in localStorage when
-// "remember me" is checked, sessionStorage otherwise — so every
-// authenticated request checks both instead of guessing which one.
+// Get JWT token from localStorage or sessionStorage
 function getAuthToken() {
+  return localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token");
+}
+
+async function apiRequest(path, options = {}) {
+  if (apiResultCache.has(path)) return apiResultCache.get(path);
+  if (apiInFlight.has(path)) return apiInFlight.get(path);
+  const promise = (async () => {
+    const res = await fetch(`${RESQBITE_API_URL}${path}`, options);
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    const data = await res.json();
+    apiResultCache.set(path, data);
+    return data;
+  })();
+  apiInFlight.set(path, promise);
   try {
-    return localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token") || null;
-  } catch {
-    return null;
+    return await promise;
+  } finally {
+    apiInFlight.delete(path);
   }
 }
 
-// Centralized request helper — the ONLY place that talks to fetch() for
-// the REST API, so the Authorization header (and cache behavior) is
-// defined once instead of being re-implemented at every call site.
-//   auth: true      -> attaches "Authorization: Bearer <resqbite_token>";
-//                       throws a tagged 401 error if no token is present.
-//   noCache: true    -> always hits the network and never reads/writes
-//                       apiResultCache — required for anything that must
-//                       reflect the live database on every call (e.g.
-//                       donation tracking), so a stale/demo snapshot can
-//                       never be served instead of the real current state.
-async function apiRequest(path, { auth = false, noCache = false, method = "GET", body } = {}) {
-  const cacheable = method === "GET" && !noCache;
-  if (cacheable) {
-    if (apiResultCache.has(path)) return apiResultCache.get(path);
-    if (apiInFlight.has(path)) return apiInFlight.get(path);
+// Authenticated request with JWT token - bypasses cache for live data
+async function authenticatedRequest(path, options = {}) {
+  const token = getAuthToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...options.headers,
+  };
+  
+  const res = await fetch(`${RESQBITE_API_URL}${path}`, {
+    ...options,
+    headers,
+  });
+  
+  if (!res.ok) {
+    if (res.status === 401) throw new Error("Unauthorized");
+    if (res.status === 404) throw new Error("Not found");
+    throw new Error(`Request failed: ${res.status}`);
   }
-
-  const run = (async () => {
-    const headers = { "Content-Type": "application/json" };
-    if (auth) {
-      const token = getAuthToken();
-      if (!token) {
-        const err = new Error("Not authenticated");
-        err.status = 401;
-        throw err;
-      }
-      headers.Authorization = `Bearer ${token}`;
-    }
-    const res = await fetch(`${RESQBITE_API_URL}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const err = new Error(`Request failed: ${res.status}`);
-      err.status = res.status;
-      throw err;
-    }
-    const data = await res.json();
-    if (cacheable) apiResultCache.set(path, data);
-    return data;
-  })();
-
-  if (cacheable) apiInFlight.set(path, run);
-  try {
-    return await run;
-  } finally {
-    if (cacheable) apiInFlight.delete(path);
-  }
+  
+  return await res.json();
 }
 
 // Synchronous read for a path already resolved this session — lets a page
@@ -106,12 +91,7 @@ const api = {
   analyticsFoodMix: () => apiRequest("/analytics/food-mix"),
   analyticsStatusBreakdown: () => apiRequest("/analytics/status-breakdown"),
   analyticsTopNgos: (limit = 5) => apiRequest(`/analytics/top-ngos?limit=${limit}`),
-  // Always authenticated + always fresh: the tracking page polls this
-  // repeatedly and must never show a cached/stale read.
-  donationTracking: (id) => apiRequest(`/donations/${id}/tracking`, { auth: true, noCache: true }),
-  // The signed-in donor's own real donations (backend already scopes
-  // /donations to donor_id for a donor-role token).
-  donorDonations: () => apiRequest("/donations", { auth: true, noCache: true }),
+  donationTracking: (id) => authenticatedRequest(`/donations/${id}`),
   organizations: () => apiRequest("/organizations"),
 };
 
@@ -654,16 +634,6 @@ function toneForOrgStatus(status) {
   if (status === "Requested") return "gold";
   if (status === "Accepted") return "primary";
   return "accent"; // Volunteer Assigned / Picked Up / In Transit / Arriving
-}
-
-// Same idea, for a real backend donation's raw status column (see
-// /src/db/index.js in the backend: pending, accepted, assigned,
-// picked_up, delivered, cancelled).
-function toneForDonationStatus(status) {
-  if (status === "delivered") return "primary";
-  if (status === "cancelled") return "danger";
-  if (status === "pending") return "gold";
-  return "accent"; // accepted / assigned / picked_up
 }
 
 // Computed from the single ORG_FOOD_REQUESTS source (or, at runtime,
@@ -1498,7 +1468,7 @@ function Landing({ go, toast, isLoggedIn, onSignOut }) {
               </Reveal>
               <Reveal delayMs={220} style={{ display: "flex", gap: 12, marginBottom: 34, flexWrap: "wrap" }}>
                 <PrimaryButton onClick={() => go(isLoggedIn ? "donate" : "login")}>Donate your first meal</PrimaryButton>
-                <GhostButton onClick={() => go("tracking", { donationId: null })}>See live tracking <ChevronRight size={15} style={{ display: "inline", verticalAlign: -2 }} /></GhostButton>
+                <GhostButton onClick={() => go("tracking")}>See live tracking <ChevronRight size={15} style={{ display: "inline", verticalAlign: -2 }} /></GhostButton>
               </Reveal>
               <div style={{ display: "flex", gap: 28 }}>
                 {[["12,400+", "Meals rescued"], ["380", "Verified NGOs"], ["4.9★", "Avg. rating"]].map(([n, l], i) => (
@@ -1860,16 +1830,15 @@ function CareersPage({ go, toast, isLoggedIn, onSignOut }) {
 /* ---------- Team ---------- */
 function TeamPage({ go, toast, isLoggedIn, onSignOut }) {
   const team = [
-    { name: "Diksha Kaur", role: "Founder & CEO", bio: "Leads product and partnerships across donors and NGOs." },
-    { name: "Aman Verma", role: "Head of Engineering", bio: "Owns the matching engine and live-tracking infrastructure." },
-    { name: "Sana Iqbal", role: "NGO Partnerships", bio: "Verifies and onboards NGOs, shelters, and community kitchens." },
-    { name: "Rohit Nair", role: "Product Design", bio: "Shapes the ResQBite visual language and donor experience." },
+    { name: "Diksha Tomar", role: "Founder & CEO", bio: "Leads product and partnerships across donors and NGOs." },
+    { name: "Varta Khandelwal", role: "Head of Engineering", bio: "Owns the matching engine and live-tracking infrastructure." },
+    { name: "Ayush Dixit", role: "Product Design", bio: "Shapes the ResQBite visual language and donor experience." },
   ];
   return (
     <PageShell go={go} toast={toast} isLoggedIn={isLoggedIn} onSignOut={onSignOut} page="team">
       <PageHero eyebrow="Team" title="The people behind ResQBite." sub="A small, focused team working directly with donors, NGOs, and volunteers." />
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 70px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }} className="rq-4col">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }} className="rq-3col">
           {team.map((m, i) => (
             <div key={i} className="rq-card-hover" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 20, textAlign: "center" }}>
               <div style={{
@@ -2931,10 +2900,31 @@ function Signup({ go, toast, onSignIn, addOrg }) {
 
     setSubmitting(true);
     try {
+      const payload = {
+        name: name.trim(),
+        email: email.trim(),
+        password: pwd,
+        role,
+        phone: role === "org" ? orgPhone : "",
+        organization_name: role === "org" ? orgName : "",
+        address: role === "org" ? orgAddress : "",
+        city: role === "org" ? "" : "",
+      };
+
+      const res = await fetch(`${RESQBITE_API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.errors?.[0]?.msg || "Account creation failed");
+      }
+
+      localStorage.setItem("resqbite_token", data.token);
+      onSignIn?.(data.user);
+      await storeSet(accountKey(email), data.user);
       if (needsOrgStep) {
-        // Simulate the save round-trip (organization record + document/
-        // logo upload) that a real backend call would perform here.
-        await new Promise((resolve) => setTimeout(resolve, 900));
         const org = {
           id: orgName.trim().toLowerCase().replace(/\s+/g, "-") || `org-${Date.now()}`,
           name: orgName, type: orgType, phone: orgPhone, address: orgAddress,
@@ -2942,18 +2932,12 @@ function Signup({ go, toast, onSignIn, addOrg }) {
           distance: "—", rating: null, verified: false, docsName, logoName,
         };
         addOrg?.(org);
-        const orgUser = { name, email, phone: orgPhone, role: "org", org };
-        await storeSet(accountKey(email), orgUser);
-        onSignIn?.(orgUser);
-        toast("Organization account created successfully!");
-        go("dashboard");
-      } else {
-        const newUser = { name, email, phone: "", role };
-        await storeSet(accountKey(email), newUser);
-        onSignIn?.(newUser);
-        toast("Account created — welcome to ResQBite!");
-        go(role === "volunteer" ? "volunteer-dashboard" : "dashboard");
       }
+      toast("Account created — welcome to ResQBite!");
+      go(role === "volunteer" ? "volunteer-dashboard" : "dashboard");
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast(error.message || "Could not create account", "error");
     } finally {
       setSubmitting(false);
     }
@@ -3392,7 +3376,7 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
     if (raw === "" || /^[0-9]+$/.test(raw)) setServings(raw);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (scanState === "scanning") {
       toast("Please wait for the AI freshness scan to finish", "error");
       return;
@@ -3401,39 +3385,50 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
       toast("Please fill in all required fields correctly", "error");
       return;
     }
+    if (!isLoggedIn) {
+      toast("Please log in to donate food", "error");
+      go("login");
+      return;
+    }
+
     setSubmitting(true);
-    const mealsNum = Number(servings);
-    const request = {
-      id: `RQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      donorName: donorName.trim(),
-      donorPhone: donorPhone.trim(),
-      donorEmail: donorEmail.trim(),
-      food: foodName.trim(),
-      quantity: `${servings} portions`,
-      meals: mealsNum,
-      weightKg: Math.round(mealsNum * 0.6),
-      category: "Other",
-      provider: "Pending pickup",
-      volunteer: null,
-      pickupLocation: pickupLocation.trim(),
-      pickupTime: preparedAt,
-      eta: null,
-      status: "Requested",
-      requestedAt: "Just now",
-      updatedAgo: "just now",
-      bestBefore,
-      photo: preview,
-    };
-    // Save to the shared organization data store (stands in for a POST
-    // to the backend / DB — see RESQBITE_API_URL at the top of this
-    // file for the real endpoint) — the same store the Track page and
-    // Dashboard read from, so this request appears there immediately.
-    orgData.addRequest(request);
-    setTimeout(() => {
-      setSubmitting(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("title", foodName.trim());
+      formData.append("description", `Donated by ${donorName.trim()} (${donorPhone.trim()})`);
+      formData.append("food_type", "other");
+      formData.append("quantity", String(Number(servings)));
+      formData.append("quantity_unit", "servings");
+      formData.append("expiry_time", new Date(bestBefore).toISOString());
+      formData.append("pickup_address", pickupLocation.trim());
+      formData.append("pickup_city", user?.city || "");
+      formData.append("latitude", "");
+      formData.append("longitude", "");
+      if (fileRef.current?.files?.[0]) {
+        formData.append("image", fileRef.current.files[0]);
+      }
+
+      const token = getAuthToken();
+      const res = await fetch(`${RESQBITE_API_URL}/donations`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Donation could not be created");
+      }
+
       toast("Food request submitted successfully.");
-      go("tracking", { donationId: null });
-    }, 500);
+      go("dashboard");
+    } catch (error) {
+      console.error("Donation submit error:", error);
+      toast(error.message || "Donation submission failed", "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -3617,129 +3612,180 @@ function MiniStat({ icon: Icon, label, value }) {
 
 /* ============================================================
    LIVE TRACKING PAGE
-   Renders ONLY real data returned by GET /api/donations/:id/tracking
-   for the donationId this page was navigated to with (see `go` in
-   the root App component). There is no sample/demo fallback here —
-   missing donationId, a failed request, or fields the backend
-   hasn't populated yet (no volunteer/org assigned, no ETA) all
-   render an honest empty/error state instead of inventing data.
 ============================================================= */
 
-// Backend donation_tracking.status -> human label + icon. Statuses this
-// map doesn't recognize still render (using the raw value as the label)
-// rather than being hidden, so a future backend status never silently
-// disappears from the timeline.
-const DONATION_STATUS_META = {
-  pending: { label: "Donation created", icon: Package },
-  accepted: { label: "Accepted by NGO", icon: CheckCircle2 },
-  assigned: { label: "Volunteer assigned", icon: Truck },
-  picked_up: { label: "Pickup started", icon: Box },
-  delivered: { label: "Delivered", icon: CircleCheck },
-  cancelled: { label: "Cancelled", icon: XCircle },
-};
-function statusLabel(status) {
-  return DONATION_STATUS_META[status]?.label || status || "Unknown";
-}
-function statusIcon(status) {
-  return DONATION_STATUS_META[status]?.icon || Clock;
-}
-
-// Ordered path of a normal (non-cancelled) donation — used only to turn
-// the donation's *current real* status into a 0–100 progress value.
-// Matches this backend's actual workflow exactly; nothing here is an
-// invented percentage.
-const DONATION_PROGRESS_ORDER = ["pending", "accepted", "assigned", "picked_up", "delivered"];
-function progressForStatus(status) {
-  if (!status || status === "cancelled") return 0;
-  const idx = DONATION_PROGRESS_ORDER.indexOf(status);
-  if (idx === -1) return 0;
-  return Math.round((idx / (DONATION_PROGRESS_ORDER.length - 1)) * 100);
-}
-
-const TRACKING_POLL_MS = 7000;
-
-function LockedRow({ onSignIn, text }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Lock size={16} color={T.inkSoft} /></div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink }}>{text}</div>
-        <button onClick={onSignIn} className="rq-btn" style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: T.primary }}>Sign in to view</button>
-      </div>
-    </div>
-  );
-}
-
-function EmptyRow({ icon: Icon, text }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, color: T.inkSoft }}>
-      <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon size={17} color={T.inkSoft} /></div>
-      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{text}</div>
-    </div>
-  );
-}
-
-function TrackingPage({ go, toast, isLoggedIn, onSignOut, donationId }) {
-  const [tracked, setTracked] = useState(null);
-  const [loading, setLoading] = useState(!!donationId);
+function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [tracked, setTracked] = useState(null);
+  const [timelineEvents, setTimelineEvents] = useState([]);
+  const [progress, setProgress] = useState(0);
+  const pollIntervalRef = useRef(null);
+  
+  // Map status to human-readable labels
+  const STATUS_LABELS = {
+    pending: "Pending",
+    accepted: "Accepted",
+    assigned: "Assigned",
+    picked_up: "Picked Up",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+    expired: "Expired",
+  };
 
-  // Fetch + poll the real tracking record for donationId. Re-runs whenever
-  // donationId changes (a different donation was selected) and always
-  // tears down its interval/flags on unmount or before the next run, so
-  // there is exactly one active poller at a time and no state updates
-  // land after the component is gone.
-  useEffect(() => {
-    if (!donationId) {
-      setTracked(null);
-      setError(null);
+  // Status progression for progress calculation
+  const STATUS_ORDER = ["pending", "accepted", "assigned", "picked_up", "delivered"];
+  const STATUS_ICONS = {
+    pending: PlusCircle,
+    accepted: CheckCircle2,
+    assigned: Truck,
+    picked_up: Package,
+    delivered: Award,
+    cancelled: XCircle,
+    expired: AlertCircle,
+  };
+
+  // Build timeline events from tracking data
+  const buildTimeline = (donation, timeline) => {
+    if (!timeline || !Array.isArray(timeline)) return [];
+    
+    return timeline.map((track, idx) => {
+      const isDone = donation.status !== track.status || timeline.some(t => 
+        STATUS_ORDER.indexOf(t.status) > STATUS_ORDER.indexOf(track.status)
+      );
+      const isActive = donation.status === track.status;
+      
+      return {
+        label: STATUS_LABELS[track.status] || track.status,
+        icon: STATUS_ICONS[track.status] || Package,
+        done: isDone || isActive,
+        active: isActive,
+        time: track.created_at ? new Date(track.created_at).toLocaleTimeString() : "Time unavailable",
+        note: track.note,
+      };
+    });
+  };
+
+  // Calculate progress from status
+  const calculateProgress = (status) => {
+    if (!status || status === "cancelled" || status === "expired") return 0;
+    const idx = STATUS_ORDER.indexOf(status);
+    if (idx < 0) return 0;
+    return Math.round((idx / (STATUS_ORDER.length - 1)) * 100);
+  };
+
+  // Fetch tracking data
+  const fetchTrackingData = useCallback(async () => {
+    if (!trackingDonationId) {
       setLoading(false);
       return;
     }
 
-    let cancelled = false;
-    let intervalId = null;
+    try {
+      const data = await api.donationTracking(trackingDonationId);
+      if (data.success === false) throw new Error(data.message || "Failed to load tracking data");
+      
+      setTracked(data);
+      const events = buildTimeline(data.donation, data.timeline);
+      setTimelineEvents(events);
+      const prog = calculateProgress(data.donation.status);
+      setProgress(prog);
+      setError(null);
+    } catch (err) {
+      console.error("Tracking fetch error:", err);
+      setError(err.message || "Unable to load live tracking");
+      setTracked(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [trackingDonationId]);
 
-    const load = async (isFirstLoad) => {
-      if (isFirstLoad) setLoading(true);
-      try {
-        const data = await api.donationTracking(donationId);
-        if (cancelled) return;
-        setTracked(data);
-        setError(null);
-        const status = data?.donation?.status;
-        if ((status === "delivered" || status === "cancelled") && intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-        }
-      } catch (err) {
-        if (cancelled) return;
-        // A failed refresh never erases good data already on screen —
-        // only the first load can leave `tracked` null.
-        if (err.status === 401) setError("Please sign in again to view live tracking.");
-        else if (err.status === 404) setError("This donation could not be found.");
-        else setError("Unable to load live tracking. Please try again.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
+  // Initial fetch
+  useEffect(() => {
+    fetchTrackingData();
+  }, [fetchTrackingData]);
 
-    load(true);
-    intervalId = setInterval(() => load(false), TRACKING_POLL_MS);
+  // Live polling every 5 seconds
+  useEffect(() => {
+    if (!trackingDonationId || !isLoggedIn) return;
+    
+    // Poll while delivery is in progress
+    pollIntervalRef.current = setInterval(() => {
+      fetchTrackingData();
+    }, 5000);
 
     return () => {
-      cancelled = true;
-      if (intervalId) clearInterval(intervalId);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [donationId]);
+  }, [trackingDonationId, isLoggedIn, fetchTrackingData]);
 
-  const donation = tracked?.donation || null;
-  const volunteer = tracked?.volunteer || null;
-  const organization = tracked?.organization || null;
-  const timeline = tracked?.timeline || [];
-  const progress = progressForStatus(donation?.status);
-  const volunteerInitials = volunteer?.name ? initialsOf(volunteer.name) : "";
-  const isActiveDelivery = donation && !["delivered", "cancelled"].includes(donation.status);
+  // Stop polling when delivered or cancelled
+  useEffect(() => {
+    if (tracked && (tracked.donation.status === "delivered" || tracked.donation.status === "cancelled")) {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    }
+  }, [tracked?.donation?.status]);
+
+  const donation = tracked?.donation;
+  const volunteer = tracked?.volunteer;
+  const organization = tracked?.organization;
+
+  // Show empty state if no donation selected
+  if (!trackingDonationId) {
+    return (
+      <div className="rq-root" style={{ minHeight: "100vh" }}>
+        <TopNav go={go} toast={toast} page="tracking" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 24px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+              <Package size={32} color={T.primary} />
+            </div>
+            <h1 style={{ fontFamily: fontDisplay, fontSize: 26, marginBottom: 8, color: T.ink }}>No donation selected</h1>
+            <p style={{ fontSize: 14, color: T.inkSoft, marginBottom: 24, maxWidth: 400, margin: "0 auto 24px" }}>
+              Select a donation from your dashboard to track its progress from pickup to delivery.
+            </p>
+            <PrimaryButton onClick={() => go("dashboard")}>Go to Dashboard</PrimaryButton>
+          </div>
+        </div>
+        <Footer go={go} toast={toast} />
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error && !tracked) {
+    return (
+      <div className="rq-root" style={{ minHeight: "100vh" }}>
+        <TopNav go={go} toast={toast} page="tracking" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 24px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FBE4E4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+              <AlertCircle size={32} color={T.danger} />
+            </div>
+            <h1 style={{ fontFamily: fontDisplay, fontSize: 26, marginBottom: 8, color: T.ink }}>Unable to load tracking</h1>
+            <p style={{ fontSize: 14, color: T.inkSoft, marginBottom: 24 }}>{error}</p>
+            <PrimaryButton onClick={() => fetchTrackingData()}>Retry</PrimaryButton>
+          </div>
+        </div>
+        <Footer go={go} toast={toast} />
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (loading || !donation) {
+    return (
+      <div className="rq-root" style={{ minHeight: "100vh" }}>
+        <TopNav go={go} toast={toast} page="tracking" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 80px" }}>
+          <div style={{ height: 300, background: T.sand + "30", borderRadius: 24, animation: "rq-shimmer 2s infinite" }} />
+        </div>
+        <Footer go={go} toast={toast} />
+      </div>
+    );
+  }
+
+  const volunteerInitials = volunteer ? initialsOf(volunteer.name) : "?";
 
   return (
     <div className="rq-root" style={{ minHeight: "100vh" }}>
@@ -3747,167 +3793,150 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, donationId }) {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 80px" }}>
         <Reveal style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
           <div>
-            <Pill tone="gold"><Truck size={12} /> {donation ? `Live rescue #${donation.id}` : "Live rescue"}</Pill>
-            <h1 style={{ fontFamily: fontDisplay, fontSize: 28, marginTop: 10, color: T.ink }}>
-              {donation ? statusLabel(donation.status) : "Track a donation"}
-            </h1>
+            <Pill tone="gold"><Truck size={12} /> Live rescue #{donation.id.slice(0, 8)}</Pill>
+            <h1 style={{ fontFamily: fontDisplay, fontSize: 28, marginTop: 10, color: T.ink }}>{STATUS_LABELS[donation.status] || donation.status}</h1>
           </div>
-          {isLoggedIn ? (
+          {isLoggedIn && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.white, border: `1px solid ${T.sand}`, borderRadius: 14, padding: "10px 16px" }}>
               <Clock size={15} color={T.accent} />
               <div>
-                <div style={{ fontSize: 10.5, color: T.inkSoft, fontWeight: 700 }}>ESTIMATED ARRIVAL</div>
-                <div style={{ fontFamily: fontMono, fontWeight: 800, fontSize: 15 }}>{tracked?.eta || "ETA unavailable"}</div>
+                <div style={{ fontSize: 10.5, color: T.inkSoft, fontWeight: 700 }}>LAST UPDATED</div>
+                <div style={{ fontFamily: fontMono, fontWeight: 800, fontSize: 13 }}>{new Date(donation.updated_at).toLocaleTimeString()}</div>
               </div>
             </div>
-          ) : (
-            <button onClick={() => go("login")} className="rq-btn" style={{ display: "flex", alignItems: "center", gap: 8, background: T.white, border: `1px solid ${T.sand}`, borderRadius: 14, padding: "10px 16px", cursor: "pointer" }}>
-              <Lock size={15} color={T.inkSoft} />
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontSize: 10.5, color: T.inkSoft, fontWeight: 700 }}>ESTIMATED ARRIVAL</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: T.primary }}>Sign in to view</div>
-              </div>
-            </button>
           )}
         </Reveal>
 
-        {!donationId ? (
-          <Reveal style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 24, padding: 60, textAlign: "center" }}>
-            <Navigation size={26} color={T.inkSoft} style={{ marginBottom: 12 }} />
-            <div style={{ fontWeight: 800, fontSize: 16, color: T.ink, marginBottom: 6 }}>No donation selected</div>
-            <div style={{ fontSize: 13, color: T.inkSoft }}>Open a donation from your dashboard and choose "Track" to see its live status here.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 20 }} className="rq-2col">
+          {/* MAP PLACEHOLDER */}
+          <Reveal index={0} style={{ background: `linear-gradient(160deg, ${T.primaryL}, #F1EDE0)`, borderRadius: 24, border: `1px solid ${T.sand}`, position: "relative", overflow: "hidden", minHeight: 380 }}>
+            <div style={{ position: "absolute", inset: 0, opacity: .5, backgroundImage: `linear-gradient(${T.sandD}22 1px, transparent 1px), linear-gradient(90deg, ${T.sandD}22 1px, transparent 1px)`, backgroundSize: "34px 34px" }} />
+            <svg width="100%" height="100%" viewBox="0 0 400 380" style={{ position: "absolute", inset: 0 }}>
+              <path id="route" d="M 60 300 C 140 300, 120 140, 200 130 S 300 60, 340 70" fill="none" stroke={T.sandD} strokeWidth="4" strokeLinecap="round" />
+              <path d="M 60 300 C 140 300, 120 140, 200 130 S 300 60, 340 70" fill="none" stroke={T.primary} strokeWidth="4" strokeLinecap="round"
+                strokeDasharray="600" strokeDashoffset="600" style={{ animation: "rq-dash 2.4s ease forwards" }} />
+              <circle cx="60" cy="300" r="9" fill={T.white} stroke={T.accent} strokeWidth="3" />
+              <circle cx="340" cy="70" r="9" fill={T.white} stroke={T.primary} strokeWidth="3" />
+              {volunteer && <circle cx="200" cy="130" r="12" fill={T.gold} stroke={T.white} strokeWidth="3" className="rq-pulse-dot" />}
+            </svg>
+            <div style={{ position: "absolute", left: 30, bottom: 24, background: T.white, borderRadius: 12, padding: "8px 12px", boxShadow: "0 8px 20px rgba(20,35,28,.12)", display: "flex", alignItems: "center", gap: 7 }}>
+              <MapPin size={14} color={T.accent} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>{donation.pickup_city || donation.pickup_address}</span>
+            </div>
+            <div style={{ position: "absolute", right: 30, top: 24, background: T.white, borderRadius: 12, padding: "8px 12px", boxShadow: "0 8px 20px rgba(20,35,28,.12)", display: "flex", alignItems: "center", gap: 7 }}>
+              <Building2 size={14} color={T.primary} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>{organization?.organization_name || organization?.name || "Not assigned"}</span>
+            </div>
+            <div style={{ position: "absolute", bottom: 14, right: 14, fontSize: 10, color: T.inkSoft, background: "rgba(255,255,255,.7)", padding: "3px 8px", borderRadius: 8 }}>Live map preview</div>
           </Reveal>
-        ) : loading && !tracked ? (
-          <Reveal style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 24, padding: 60, textAlign: "center" }}>
-            <Loader2 size={22} className="rq-spin" color={T.primary} style={{ marginBottom: 12 }} />
-            <div style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>Loading live tracking...</div>
-          </Reveal>
-        ) : error && !tracked ? (
-          <Reveal style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 24, padding: 60, textAlign: "center" }}>
-            <AlertCircle size={22} color={T.accent} style={{ marginBottom: 12 }} />
-            <div style={{ fontWeight: 800, fontSize: 15, color: T.ink }}>{error}</div>
-          </Reveal>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 20 }} className="rq-2col">
-            {/* MAP */}
-            <Reveal index={0} style={{ background: `linear-gradient(160deg, ${T.primaryL}, #F1EDE0)`, borderRadius: 24, border: `1px solid ${T.sand}`, position: "relative", overflow: "hidden", minHeight: 380 }}>
-              <div style={{ position: "absolute", inset: 0, opacity: .5, backgroundImage: `linear-gradient(${T.sandD}22 1px, transparent 1px), linear-gradient(90deg, ${T.sandD}22 1px, transparent 1px)`, backgroundSize: "34px 34px" }} />
-              <svg width="100%" height="100%" viewBox="0 0 400 380" style={{ position: "absolute", inset: 0 }}>
-                <path d="M 60 300 C 140 300, 120 140, 200 130 S 300 60, 340 70" fill="none" stroke={T.sandD} strokeWidth="4" strokeLinecap="round" />
-                <path d="M 60 300 C 140 300, 120 140, 200 130 S 300 60, 340 70" fill="none" stroke={T.primary} strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray="600" strokeDashoffset={600 - (600 * progress) / 100} style={{ transition: "stroke-dashoffset 1.2s ease" }} />
-                <circle cx="60" cy="300" r="9" fill={T.white} stroke={T.accent} strokeWidth="3" />
-                <circle cx="340" cy="70" r="9" fill={T.white} stroke={T.primary} strokeWidth="3" />
-                {volunteer && isActiveDelivery && (
-                  <circle cx="200" cy="130" r="12" fill={T.gold} stroke={T.white} strokeWidth="3" className="rq-pulse-dot" />
-                )}
-              </svg>
-              <div style={{ position: "absolute", left: 30, bottom: 24, background: T.white, borderRadius: 12, padding: "8px 12px", boxShadow: "0 8px 20px rgba(20,35,28,.12)", display: "flex", alignItems: "center", gap: 7, maxWidth: 220 }}>
-                <MapPin size={14} color={T.accent} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>{donation?.pickup_address || "Pickup location unavailable"}</span>
-              </div>
-              <div style={{ position: "absolute", right: 30, top: 24, background: T.white, borderRadius: 12, padding: "8px 12px", boxShadow: "0 8px 20px rgba(20,35,28,.12)", display: "flex", alignItems: "center", gap: 7 }}>
-                <Building2 size={14} color={T.primary} /> <span style={{ fontSize: 11.5, fontWeight: 700 }}>{organization?.name || "Not assigned yet"}</span>
-              </div>
-              {volunteer && isActiveDelivery && (
-                <div className="rq-truck" style={{ position: "absolute", left: "48%", top: "32%", background: T.ink, borderRadius: "50%", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(0,0,0,.25)" }}>
-                  <Truck size={15} color={T.white} />
+
+          {/* RIGHT PANEL */}
+          <Reveal index={1} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* DONATION DETAILS */}
+            <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 10 }}>DONATION</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{donation.title}</div>
+              <div style={{ fontSize: 12, color: T.inkSoft, marginBottom: 8 }}>{donation.quantity} {donation.quantity_unit}</div>
+              {donation.expiry_time && (
+                <div style={{ fontSize: 11.5, color: T.accentD, fontWeight: 600 }}>Safe until: {new Date(donation.expiry_time).toLocaleTimeString()}</div>
+              )}
+            </div>
+
+            {/* VOLUNTEER */}
+            <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 10 }}>VOLUNTEER</div>
+              {!isLoggedIn ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Lock size={16} color={T.inkSoft} /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink }}>Delivery partner details are hidden</div>
+                    <button onClick={() => go("login")} className="rq-btn" style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: T.primary }}>Sign in to view</button>
+                  </div>
+                </div>
+              ) : volunteer ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}, ${T.accent})`, display: "flex", alignItems: "center", justifyContent: "center", color: T.white, fontWeight: 800 }}>{volunteerInitials}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{volunteer.name}</div>
+                    <div style={{ fontSize: 11.5, color: T.inkSoft }}>{volunteer.phone || "No phone"}</div>
+                  </div>
+                  <button className="rq-btn" onClick={() => toast(`Calling ${volunteer.name}`)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: T.primaryL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Phone size={15} color={T.primary} /></button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, color: T.inkSoft }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Truck size={17} color={T.inkSoft} /></div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>Volunteer not assigned yet</div>
                 </div>
               )}
-              <div style={{ position: "absolute", bottom: 14, right: 14, fontSize: 10, color: T.inkSoft, background: "rgba(255,255,255,.7)", padding: "3px 8px", borderRadius: 8 }}>
-                {volunteer?.latitude != null && volunteer?.longitude != null ? "Volunteer location on file" : "Live location unavailable"}
-              </div>
-            </Reveal>
+            </div>
 
-            {/* RIGHT PANEL */}
-            <Reveal index={1} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* VOLUNTEER */}
-              <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 10 }}>VOLUNTEER</div>
-                {!isLoggedIn ? (
-                  <LockedRow onSignIn={() => go("login")} text="Delivery partner details are hidden" />
-                ) : volunteer ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: `linear-gradient(135deg, ${T.gold}, ${T.accent})`, display: "flex", alignItems: "center", justifyContent: "center", color: T.white, fontWeight: 800 }}>{volunteerInitials}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{volunteer.name}</div>
-                      <div style={{ fontSize: 11.5, color: T.inkSoft, display: "flex", alignItems: "center", gap: 4 }}>
-                        {volunteer.rating != null ? (
-                          <><Star size={11} fill={T.gold} color={T.gold} /> {volunteer.rating}{volunteer.deliveries != null ? ` · ${volunteer.deliveries} deliveries` : ""}</>
-                        ) : volunteer.deliveries != null ? (
-                          <>{volunteer.deliveries} deliveries</>
-                        ) : null}
-                      </div>
-                    </div>
-                    {volunteer.phone && (
-                      <button className="rq-btn" onClick={() => toast(`Calling ${firstNameOf(volunteer)}`)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: T.primaryL, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Phone size={15} color={T.primary} /></button>
-                    )}
+            {/* RECEIVING ORGANIZATION */}
+            <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 10 }}>RECEIVING ORGANIZATION</div>
+              {!isLoggedIn ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Lock size={16} color={T.inkSoft} /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink }}>Organization details are hidden</div>
+                    <button onClick={() => go("login")} className="rq-btn" style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: T.primary }}>Sign in to view</button>
                   </div>
-                ) : (
-                  <EmptyRow icon={Truck} text="Volunteer not assigned yet" />
-                )}
-              </div>
+                </div>
+              ) : organization ? (
+                <>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{organization.organization_name || organization.name}</div>
+                  <div style={{ fontSize: 12, color: T.inkSoft, marginBottom: 10 }}>{organization.city || organization.address || "Location unavailable"}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: T.inkSoft, marginBottom: 8 }}>
+                    <span>Progress</span><span style={{ fontFamily: fontMono, fontWeight: 800, color: T.primary }}>{progress}%</span>
+                  </div>
+                  <div style={{ height: 7, background: T.sand, borderRadius: 6, overflow: "hidden" }}>
+                    <div style={{
+                      width: "100%", height: "100%", background: `linear-gradient(90deg, ${T.primary}, ${T.gold})`, borderRadius: 6,
+                      transform: `scaleX(${progress / 100})`, transformOrigin: "left",
+                      transition: "transform 1.6s cubic-bezier(.16,1,.3,1)", willChange: "transform"
+                    }} />
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, color: T.inkSoft }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Building2 size={17} color={T.inkSoft} /></div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>Organization information unavailable</div>
+                </div>
+              )}
+            </div>
 
-              {/* RECEIVING ORGANIZATION */}
-              <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 10 }}>RECEIVING ORGANIZATION</div>
-                {!isLoggedIn ? (
-                  <LockedRow onSignIn={() => go("login")} text="Receiving organization details are hidden" />
-                ) : organization ? (
-                  <>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{organization.name}</div>
-                    <div style={{ fontSize: 12, color: T.inkSoft, marginBottom: 10 }}>
-                      {[organization.type, organization.city].filter(Boolean).join(" · ") || "Organization information unavailable"}
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: T.inkSoft }}>
-                      <span>Progress</span><span style={{ fontFamily: fontMono, fontWeight: 800, color: T.primary }}>{progress}%</span>
-                    </div>
-                    <div style={{ height: 7, background: T.sand, borderRadius: 6, overflow: "hidden", marginTop: 5 }}>
-                      <div style={{
-                        width: "100%", height: "100%", background: `linear-gradient(90deg, ${T.primary}, ${T.gold})`, borderRadius: 6,
-                        transform: `scaleX(${progress / 100})`, transformOrigin: "left",
-                        transition: "transform 1.2s cubic-bezier(.16,1,.3,1)", willChange: "transform"
-                      }} />
-                    </div>
-                  </>
-                ) : (
-                  <EmptyRow icon={Building2} text="Organization information unavailable" />
-                )}
-              </div>
-
-              {/* TIMELINE */}
-              <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18, flex: 1 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 14 }}>TIMELINE</div>
-                {!isLoggedIn ? (
-                  <LockedRow onSignIn={() => go("login")} text="Delivery timeline is hidden" />
-                ) : timeline.length === 0 ? (
-                  <EmptyRow icon={Clock} text="No tracking history yet" />
-                ) : timeline.map((s, i) => {
-                  const Icon = statusIcon(s.status);
-                  const isLast = i === timeline.length - 1;
-                  const isCancelled = s.status === "cancelled";
-                  return (
-                    <div key={s.id || i} style={{ display: "flex", gap: 12, position: "relative", paddingBottom: i < timeline.length - 1 ? 20 : 0 }}>
-                      {i < timeline.length - 1 && <div style={{ position: "absolute", left: 11, top: 26, bottom: 0, width: 2, background: T.primary }} />}
-                      <div className={isLast ? "rq-pulse-dot" : ""} style={{
-                        width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                        background: isCancelled ? T.accent : (isLast ? T.gold : T.primary), zIndex: 1
-                      }}>
-                        <Icon size={12} color={T.white} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: T.ink }}>{statusLabel(s.status)}</div>
-                        <div style={{ fontSize: 11, color: T.inkSoft, fontFamily: fontMono }}>
-                          {s.created_at ? new Date(s.created_at).toLocaleString() : "Time unavailable"}
-                        </div>
-                        {s.note && <div style={{ fontSize: 11.5, color: T.inkSoft, marginTop: 2 }}>{s.note}</div>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Reveal>
-          </div>
-        )}
+            {/* TIMELINE */}
+            <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18, flex: 1 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: T.inkSoft, marginBottom: 14 }}>TIMELINE</div>
+              {!isLoggedIn ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Lock size={16} color={T.inkSoft} /></div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink }}>Timeline is hidden</div>
+                    <button onClick={() => go("login")} className="rq-btn" style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: T.primary }}>Sign in to view</button>
+                  </div>
+                </div>
+              ) : timelineEvents.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, color: T.inkSoft }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: T.sand, display: "flex", alignItems: "center", justifyContent: "center" }}><Clock size={17} color={T.inkSoft} /></div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>No tracking events yet</div>
+                </div>
+              ) : timelineEvents.map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, position: "relative", paddingBottom: i < timelineEvents.length - 1 ? 20 : 0 }}>
+                  {i < timelineEvents.length - 1 && <div style={{ position: "absolute", left: 11, top: 26, bottom: 0, width: 2, background: s.done ? T.primary : T.sand }} />}
+                  <div className={s.active ? "rq-pulse-dot" : ""} style={{
+                    width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    background: s.done ? T.primary : s.active ? T.gold : T.sand, zIndex: 1
+                  }}>
+                    <s.icon size={12} color={s.done || s.active ? T.white : T.inkSoft} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: s.done || s.active ? T.ink : T.inkSoft }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: T.inkSoft, fontFamily: fontMono }}>{s.time}</div>
+                    {s.note && <div style={{ fontSize: 10.5, color: T.inkSoft, marginTop: 2 }}>{s.note}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
       </div>
 
       <Footer go={go} toast={toast} />
@@ -3932,6 +3961,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   // Each also initializes from the module-level apiResultCache: if we
   // already fetched it on a previous visit to this page this session,
   // it renders immediately with no skeleton and no re-fetch.
+  const [dashboardData, setDashboardData] = useState(() => getCached("/dashboard") || null);
   const [overview, setOverview] = useState(() => getCached("/analytics/overview") || null);
   const [weeklyData, setWeeklyData] = useState(() => {
     const cached = getCached("/analytics/weekly?days=7");
@@ -3942,11 +3972,11 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
     const cached = getCached("/analytics/status-breakdown");
     return cached ? cached.statusBreakdown.map((s) => ({ status: s.status.replace(/_/g, " "), count: s.count })) : [];
   });
-  const [loadingOverview, setLoadingOverview] = useState(!isOrg && !getCached("/analytics/overview"));
-  const [loadingWeekly, setLoadingWeekly] = useState(!isOrg && !getCached("/analytics/weekly?days=7"));
-  const [loadingFoodMix, setLoadingFoodMix] = useState(!isOrg && !getCached("/analytics/food-mix"));
-  const [loadingStatus, setLoadingStatus] = useState(!isOrg && !getCached("/analytics/status-breakdown"));
-  const [isLive, setIsLive] = useState(() => !!getCached("/analytics/overview"));
+  const [loadingOverview, setLoadingOverview] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/overview"));
+  const [loadingWeekly, setLoadingWeekly] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/weekly?days=7"));
+  const [loadingFoodMix, setLoadingFoodMix] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/food-mix"));
+  const [loadingStatus, setLoadingStatus] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/status-breakdown"));
+  const [isLive, setIsLive] = useState(() => !!getCached("/dashboard") || !!getCached("/analytics/overview"));
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   // Donations/surplus list is capped to the latest 3 by default; "View all"
@@ -3973,42 +4003,38 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
     }
     let cancelled = false;
 
-    api.analyticsOverview()
-      .then((ov) => { if (!cancelled) { setOverview(ov); setIsLive(true); } })
-      .catch(() => { }) // backend not reachable — keep sample data
-      .finally(() => { if (!cancelled) setLoadingOverview(false); });
+    authenticatedRequest("/dashboard")
+      .then((data) => {
+        if (cancelled) return;
+        setDashboardData(data);
+        setOverview({
+          activeDonations: data.stats.activeDonations,
+          inTransit: data.stats.inTransit,
+          mealsDelivered: data.stats.mealsDonated,
+          deliveredDonations: data.stats.deliveredDonations,
+          totalDonations: data.stats.totalDonations,
+          verifiedNgoCount: 0,
+          volunteerCount: 0,
+          co2SavedTonnes: 0,
+        });
+        setWeeklyData(data.weeklyMeals || WEEKLY);
+        setIsLive(true);
+      })
+      .catch(() => {
+        // fall back to public analytics if the dashboard route is unavailable
+        return api.analyticsOverview()
+          .then((ov) => { if (!cancelled) { setOverview(ov); setIsLive(true); } })
+          .catch(() => { });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingOverview(false);
+          setLoadingWeekly(false);
+          setLoadingFoodMix(false);
+          setLoadingStatus(false);
+        }
+      });
 
-    api.analyticsWeekly(7)
-      .then((wk) => { if (!cancelled) setWeeklyData(wk.weekly.map((w) => ({ d: w.d, meals: w.meals }))); })
-      .catch(() => { })
-      .finally(() => { if (!cancelled) setLoadingWeekly(false); });
-
-    api.analyticsFoodMix()
-      .then((fm) => { if (!cancelled) setFoodMixData(fm.foodMix); })
-      .catch(() => { })
-      .finally(() => { if (!cancelled) setLoadingFoodMix(false); });
-
-    api.analyticsStatusBreakdown()
-      .then((sb) => { if (!cancelled) setStatusData(sb.statusBreakdown.map((s) => ({ status: s.status.replace(/_/g, " "), count: s.count }))); })
-      .catch(() => { })
-      .finally(() => { if (!cancelled) setLoadingStatus(false); });
-
-    return () => { cancelled = true; };
-  }, [isOrg]);
-
-  // The signed-in donor's REAL donations from SQLite (via the backend),
-  // used only to give the "Track" button on each row an actual donation
-  // ID. `null` = not fetched yet / fetch failed; `[]` = fetched and the
-  // donor genuinely has none yet — either way the demo DASHBOARD_DONATIONS
-  // list below is used only as a display fallback, and any row sourced
-  // from it never gets a Track button (it has no real ID to track).
-  const [donorDonations, setDonorDonations] = useState(null);
-  useEffect(() => {
-    if (isOrg) return;
-    let cancelled = false;
-    api.donorDonations()
-      .then((res) => { if (!cancelled) setDonorDonations(res.donations || []); })
-      .catch(() => { if (!cancelled) setDonorDonations(null); });
     return () => { cancelled = true; };
   }, [isOrg]);
 
@@ -4018,7 +4044,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   const weeklyChartData = isOrg ? orgData.weekly.weekly : weeklyData;
   const foodMixChartData = isOrg ? orgData.categories : foodMixData;
   const statusChartData = isOrg ? orgData.statusBreakdown : statusData;
-  const weeklyPctChange = isOrg ? orgData.weekly.pctChange : 24;
+  const weeklyPctChange = isOrg ? orgData.weekly.pctChange : (dashboardData?.weeklyChange ?? 0);
 
   // Organization dashboards are framed around RECEIVING food — an
   // organization is a food receiver, never a donor — instead of generic
@@ -4030,17 +4056,22 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
     { icon: Truck, label: "Pending Deliveries", value: orgData.stats.pendingDeliveries, delta: `${orgData.requests.filter((r) => r.status === "In Transit").length} in transit now`, color: T.gold },
     { icon: Users, label: "Meals Received", value: orgData.stats.mealsReceived, delta: `${weeklyPctChange >= 0 ? "+" : ""}${weeklyPctChange}% this week`, color: T.accent },
     { icon: Box, label: "Food Received", value: orgData.stats.foodReceivedKg, suffix: " kg", delta: `${orgData.impact.successfulDeliveries} deliveries`, color: T.primaryD },
+  ] : (dashboardData ? [
+    { icon: Package, label: "Active donations", value: dashboardData.stats.activeDonations, delta: `${dashboardData.stats.todayDonations || 0} today`, color: T.primary },
+    { icon: Truck, label: "In transit", value: dashboardData.stats.inTransit, delta: `${dashboardData.stats.deliveredDonations || 0} delivered`, color: T.gold },
+    { icon: Users, label: "Meals donated", value: dashboardData.stats.mealsDonated, delta: `${dashboardData.weeklyChange || 0}% this week`, color: T.accent },
+    { icon: Award, label: "Rescue points", value: dashboardData.stats.rescuePoints, delta: dashboardData.stats.tier, color: T.primaryD },
   ] : (overview ? [
     { icon: Package, label: "Active donations", value: overview.activeDonations, delta: `${overview.totalDonations} total`, color: T.primary },
     { icon: Truck, label: "In transit", value: overview.inTransit, delta: `${overview.deliveredDonations} delivered`, color: T.gold },
     { icon: Users, label: "Meals donated", value: overview.mealsDelivered, delta: `${overview.co2SavedTonnes}t CO₂ saved`, color: T.accent },
     { icon: Award, label: "Verified NGOs", value: overview.verifiedNgoCount, delta: `${overview.volunteerCount} volunteers`, color: T.primaryD },
   ] : [
-    { icon: Package, label: "Active donations", value: 6, delta: "+2 today", color: T.primary },
-    { icon: Truck, label: "In transit", value: 2, delta: "1 arriving soon", color: T.gold },
-    { icon: Users, label: "Meals donated", value: 842, delta: "+118 this week", color: T.accent },
-    { icon: Award, label: "Rescue points", value: 1240, delta: "Gold tier", color: T.primaryD },
-  ]
+    { icon: Package, label: "Active donations", value: 0, delta: "0 today", color: T.primary },
+    { icon: Truck, label: "In transit", value: 0, delta: "0 delivered", color: T.gold },
+    { icon: Users, label: "Meals donated", value: 0, delta: "0% this week", color: T.accent },
+    { icon: Award, label: "Rescue points", value: 0, delta: "Bronze", color: T.primaryD },
+  ])
   );
 
   const scrollToList = () => { setShowAllDonations(true); listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
@@ -4049,11 +4080,11 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   const quickActions = isOrg ? [
     { icon: Package, label: "Find Food", act: () => go("available-food") },
     { icon: PlusCircle, label: "Request Food", act: () => go("donate") },
-    { icon: Navigation, label: "Track Delivery", act: () => go("tracking", { donationId: null }) },
+    { icon: Navigation, label: "Track Delivery", act: () => go("tracking") },
     { icon: Clock, label: "Food History", act: () => go("org-history") },
   ] : [
     { icon: PlusCircle, label: "New donation", act: () => go("donate") },
-    { icon: Navigation, label: "Track pickup", act: () => go("tracking", { donationId: null }) },
+    { icon: Navigation, label: "Track pickup", act: () => go("tracking") },
     { icon: Building2, label: "Browse orgs", act: () => go("organizations") },
     { icon: BarChart3, label: "Full report", act: () => toast("Generating report") },
   ];
@@ -4221,7 +4252,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                       <div style={{ fontSize: 11.5, color: T.inkSoft }}>Volunteer {incoming.volunteer || "not assigned yet"} · ETA {incoming.eta || "unavailable"}</div>
                     </div>
                   </div>
-                  <button onClick={() => go("tracking", { donationId: null })} className="rq-btn" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 10, padding: "9px 14px", fontSize: 12, fontWeight: 700, color: T.primaryD, cursor: "pointer", flexShrink: 0 }}>Track Food</button>
+                  <button onClick={() => go("tracking", { trackingDonationId: incoming.id })} className="rq-btn" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 10, padding: "9px 14px", fontSize: 12, fontWeight: 700, color: T.primaryD, cursor: "pointer", flexShrink: 0 }}>Track Food</button>
                 </div>
               );
             })()}
@@ -4243,21 +4274,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                 ))}
               </div>
               {(() => {
-                // Donor rows: use the real backend list once it's loaded
-                // and non-empty; otherwise fall back to the sample list
-                // (rows from the sample list simply get no Track button,
-                // since they have no real donation ID — see below).
-                const sourceList = isOrg
-                  ? orgData.requests
-                  : (donorDonations && donorDonations.length > 0
-                    ? donorDonations.map((d) => ({
-                      id: d.id,
-                      name: `${d.title}${d.quantity ? ` · ${d.quantity} ${d.quantity_unit || ""}`.trim() : ""}`,
-                      org: d.accepted_by_ngo_id ? "NGO assigned" : "Awaiting NGO",
-                      status: statusLabel(d.status),
-                      tone: toneForDonationStatus(d.status),
-                    }))
-                    : DASHBOARD_DONATIONS);
+                const sourceList = isOrg ? orgData.requests : DASHBOARD_DONATIONS;
                 const allowedStatuses = isOrg ? REQUEST_STATUS_FILTER_MAP[filter] : null;
                 const filteredDonations = sourceList
                   .filter(d => (isOrg ? d.food : d.name).toLowerCase().includes(search.toLowerCase()))
@@ -4293,7 +4310,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                             </div>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: 50, gap: 10, flexWrap: "wrap" }}>
                               <div style={{ fontSize: 11.5, color: T.inkSoft, fontWeight: 600 }}>{d.volunteer ? `Volunteer: ${d.volunteer}` : "Awaiting volunteer"}</div>
-                              <button onClick={() => go("tracking", { donationId: null })} className="rq-btn" style={{ background: "transparent", border: `1px solid ${T.sand}`, borderRadius: 9, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: T.primaryD, cursor: "pointer" }}>Track Food</button>
+                              <button onClick={() => go("tracking", { trackingDonationId: d.id })} className="rq-btn" style={{ background: "transparent", border: `1px solid ${T.sand}`, borderRadius: 9, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: T.primaryD, cursor: "pointer" }}>Track Food</button>
                             </div>
                           </div>
                         ) : (
@@ -4305,12 +4322,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                                 <div style={{ fontSize: 11.5, color: T.inkSoft }}>→ {d.org}</div>
                               </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <Pill tone={d.tone}>{d.status}</Pill>
-                              {d.id && (
-                                <button onClick={() => go("tracking", { donationId: d.id })} className="rq-btn" style={{ background: "transparent", border: `1px solid ${T.sand}`, borderRadius: 9, padding: "5px 10px", fontSize: 11, fontWeight: 700, color: T.primaryD, cursor: "pointer" }}>Track</button>
-                              )}
-                            </div>
+                            <Pill tone={d.tone}>{d.status}</Pill>
                           </div>
                         )
                       ))}
@@ -4623,15 +4635,24 @@ function OrgHistoryPage({ go, toast, isLoggedIn, onSignOut }) {
 
 const API_BASE = `${RESQBITE_API_URL}/volunteer`;
 
+function getVolunteerAuthHeaders(extra = {}) {
+  const token = getAuthToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
 async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { headers: getVolunteerAuthHeaders() });
   if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
   return res.json();
 }
 async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getVolunteerAuthHeaders(),
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) throw new Error(`POST ${path} -> ${res.status}`);
@@ -4640,7 +4661,7 @@ async function apiPost(path, body) {
 async function apiPatch(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: getVolunteerAuthHeaders(),
     body: JSON.stringify(body || {}),
   });
   if (!res.ok) throw new Error(`PATCH ${path} -> ${res.status}`);
@@ -4835,6 +4856,16 @@ function useVolunteerData(user) {
   const [notifications, setNotifications] = useState(cached?.notifications || []);
   const [history, setHistory] = useState(cached?.history || []);
 
+  const normalizeNotifications = useCallback((rows = []) => {
+    return (rows || []).map((n) => ({
+      id: n.id || uid(),
+      type: n.type || "status",
+      message: n.message || n.title || "New notification",
+      createdAt: n.created_at || n.createdAt || new Date().toISOString(),
+      read: Boolean(n.is_read ?? n.read ?? false),
+    }));
+  }, []);
+
   const persist = useCallback(async (patch) => {
     if (patch.profile) await storeSet(ns(email, "profile"), patch.profile);
     if (patch.tasks) await storeSet(ns(email, "tasks"), patch.tasks);
@@ -4850,15 +4881,23 @@ function useVolunteerData(user) {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const [p, av, tk, nt, hi] = await Promise.all([
+      const [meRes, avRes, tkRes, ntRes, hiRes] = await Promise.all([
         apiGet("/me"), apiGet("/pickups/available"), apiGet("/tasks"), apiGet("/notifications"), apiGet("/history"),
       ]);
+
+      const profilePayload = meRes?.user || meRes || { name: user?.name || "", email, phone: user?.phone || "", available: true };
       const snapshot = {
-        profile: p || { name: user?.name || "", email, phone: user?.phone || "", available: true },
-        available: Array.isArray(av) ? av : [],
-        tasks: Array.isArray(tk) ? tk : [],
-        notifications: Array.isArray(nt) ? nt : [],
-        history: Array.isArray(hi) ? hi : [],
+        profile: {
+          ...profilePayload,
+          name: profilePayload.name || user?.name || "Volunteer",
+          email: profilePayload.email || email,
+          phone: profilePayload.phone || user?.phone || "",
+          available: profilePayload.available ?? true,
+        },
+        available: Array.isArray(avRes?.pickups) ? avRes.pickups : Array.isArray(avRes) ? avRes : [],
+        tasks: Array.isArray(tkRes?.tasks) ? tkRes.tasks : Array.isArray(tkRes) ? tkRes : [],
+        notifications: normalizeNotifications(ntRes?.notifications || ntRes || []),
+        history: Array.isArray(hiRes?.history) ? hiRes.history : Array.isArray(hiRes) ? hiRes : [],
       };
       volunteerDataCache.set(email, snapshot);
       setProfile(snapshot.profile); setAvailable(snapshot.available); setTasks(snapshot.tasks);
@@ -4874,7 +4913,7 @@ function useVolunteerData(user) {
         profile: p || { name: user?.name || "", email, phone: user?.phone || "", available: true },
         available: Array.isArray(pool) ? pool : [],
         tasks: Array.isArray(tk) ? tk : [],
-        notifications: Array.isArray(nt) ? nt : [],
+        notifications: normalizeNotifications(Array.isArray(nt) ? nt : []),
         history: Array.isArray(hi) ? hi : [],
       };
       volunteerDataCache.set(email, snapshot);
@@ -4883,7 +4922,7 @@ function useVolunteerData(user) {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [email, user]);
+  }, [email, normalizeNotifications, user]);
 
   // If we already have a cached snapshot (from an earlier visit this
   // session) this refresh runs silently in the background; otherwise it's
@@ -4906,7 +4945,7 @@ function useVolunteerData(user) {
       persist({ notifications: next });
       return next;
     });
-    try { await apiPost("/notifications", notif); } catch { }
+    try { await apiPost("/notifications", { title: type, message, is_read: 0 }); } catch { }
   }, [persist]);
 
   const toggleAvailability = useCallback(async () => {
@@ -5582,14 +5621,39 @@ const PAGE_TITLES = {
 
 export default function ResQBiteApp() {
   const [page, setPage] = useState("landing");
-  // The real donation ID (from SQLite, via the backend) currently shown on
-  // the Live Tracking page. Only ever set from an actual donation record —
-  // see `go` below — never a hardcoded/demo ID.
-  const [trackingDonationId, setTrackingDonationId] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   // Signed-in account profile. In production this comes from the auth
   // session (JWT / server session), never from client-supplied IDs.
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    fetch(`${RESQBITE_API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Auth check failed: ${res.status}`);
+        }
+        const data = await res.json();
+        if (data?.success && data.user) {
+          setUser(data.user);
+          setIsLoggedIn(true);
+        } else {
+          throw new Error("No user returned");
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("resqbite_token");
+        sessionStorage.removeItem("resqbite_token");
+        setUser(null);
+        setIsLoggedIn(false);
+      });
+  }, []);
+  // Track which donation is being viewed on the tracking page
+  const [trackingDonationId, setTrackingDonationId] = useState(null);
   // A signed-in user's monetary-donation history. Seeded with sample past
   // donations for demo purposes (same convention as ORGS/ACTIVITY/WEEKLY
   // above) — new donations are only appended here once a real payment
@@ -5605,17 +5669,22 @@ export default function ResQBiteApp() {
   // anywhere in the app) goes through this single setter, so scrolling
   // to the very top — header included — on every page change is
   // handled in exactly one place instead of being repeated at each
-  // call site.
-  // Optional second argument carries a real donationId to the tracking
-  // page (go("tracking", { donationId: donation.id })). Any navigation
-  // that doesn't pass one explicitly leaves the current selection alone;
-  // call sites that are NOT about a specific donation (nav links, the
-  // landing page CTA, generic quick actions) explicitly pass
-  // { donationId: null } so the tracking page shows "No donation
-  // selected" instead of carrying over a stale ID from an earlier visit.
-  const go = (p, opts) => {
-    if (opts && Object.prototype.hasOwnProperty.call(opts, "donationId")) {
-      setTrackingDonationId(opts.donationId);
+  // call site. Now also supports navigation with state (e.g., tracking donation ID).
+  const go = (p, state = {}) => {
+    if (state.trackingDonationId) {
+      setTrackingDonationId(state.trackingDonationId);
+    } else if (p === "tracking") {
+      // BUGFIX: the top-nav "Track" link and the dashboard's "Track
+      // Delivery" / "Track pickup" quick actions used to call
+      // go("tracking") with no id at all, which always landed on
+      // "No donation selected" even when the signed-in user has
+      // active donations. Default to their most recent non-terminal
+      // donation (or their most recent donation of any status if none
+      // are still in progress) so those generic entry points behave
+      // like "take me to what I'm currently tracking".
+      const active = donations.find((d) => d.status !== "Delivered" && d.status !== "Cancelled");
+      const fallback = active || donations[0];
+      if (fallback) setTrackingDonationId(fallback.id);
     }
     setPage(p);
   };
@@ -5636,7 +5705,13 @@ export default function ResQBiteApp() {
     document.title = PAGE_TITLES[page] || "ResQBite";
   }, [page]);
   const signIn = (userData) => { setIsLoggedIn(true); setUser(userData || DEFAULT_USER); };
-  const signOut = () => { setIsLoggedIn(false); setUser(null); go("landing"); };
+  const signOut = () => {
+    localStorage.removeItem("resqbite_token");
+    sessionStorage.removeItem("resqbite_token");
+    setIsLoggedIn(false);
+    setUser(null);
+    go("landing");
+  };
   const addDonation = (d) => setDonations((prev) => [d, ...prev]);
   const addOrg = (o) => setOrgs((prev) => [o, ...prev]);
   const notificationCenter = useNotificationCenter(user, isLoggedIn);
@@ -5648,7 +5723,7 @@ export default function ResQBiteApp() {
     login: <Login go={go} toast={push} onSignIn={signIn} />,
     signup: <Signup go={go} toast={push} onSignIn={signIn} addOrg={addOrg} />,
     donate: <DonatePage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
-    tracking: <TrackingPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} donationId={trackingDonationId} />,
+    tracking: <TrackingPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} trackingDonationId={trackingDonationId} />,
     dashboard: isLoggedIn
       ? (user?.role === "volunteer"
         ? <VolunteerDashboard go={go} user={user} onSignOut={signOut} />
@@ -5679,6 +5754,14 @@ export default function ResQBiteApp() {
 
   return (
     <UserContext.Provider value={{ user, isLoggedIn }}>
+      {/* BUGFIX: OrgDataProvider was defined but never mounted anywhere
+          in the tree, so every useOrgData() consumer (AvailableFoodPage's
+          "Request Food" button, OrgHistoryPage, the org-side dashboard
+          numbers) was silently reading the context's empty fallback
+          ({ requests: [], addRequest: () => {} }) instead of shared,
+          persisted state — requests appeared to vanish immediately
+          after being made. */}
+      <OrgDataProvider>
       <NotificationContext.Provider value={notificationCenter}>
         <div className="rq-app-root" style={{ fontFamily: fontBody, width: "100%", minHeight: "100vh" }}>
           <GlobalStyle />
@@ -5757,6 +5840,7 @@ export default function ResQBiteApp() {
           {pages[page]}
         </div>
       </NotificationContext.Provider>
+      </OrgDataProvider>
     </UserContext.Provider>
   );
 }
