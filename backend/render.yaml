@@ -1,4 +1,4 @@
-services:
+﻿services:
   - type: web
     name: resqbite-backend
     env: docker
@@ -10,6 +10,8 @@ services:
         value: 10000
       - key: SERVER_PORT
         value: 10000
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
       - key: SPRING_DATASOURCE_URL
         sync: false
       - key: SPRING_DATASOURCE_USERNAME
