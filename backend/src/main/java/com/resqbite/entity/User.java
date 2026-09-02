@@ -102,6 +102,7 @@ public class User implements UserDetails {
 
     public enum UserType {
         VOLUNTEER,
-        NGO
+        NGO,
+        DONOR
     }
 }

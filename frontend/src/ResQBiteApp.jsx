@@ -40,12 +40,21 @@ function getAuthToken() {
 
 function normalizeApiUser(apiUser) {
   if (!apiUser) return null;
-  const isVolunteer = apiUser.role?.toUpperCase() === "VOLUNTEER";
+  const normalizedRole = apiUser.role?.toUpperCase();
+  const isVolunteer = normalizedRole === "VOLUNTEER";
+  const isOrganization = normalizedRole === "NGO" || normalizedRole === "ORGANIZATION" || normalizedRole === "ORG";
   return {
     ...apiUser,
-    role: isVolunteer ? "volunteer" : "org",
-    ...(isVolunteer ? {} : { org: { name: apiUser.bio || apiUser.name } }),
+    role: isVolunteer ? "volunteer" : isOrganization ? "org" : "donor",
+    ...(isOrganization ? { org: { name: apiUser.bio || apiUser.name } } : {}),
   };
+}
+
+function dashboardForRole(user) {
+  if (user?.role === "org") return "dashboard";
+  if (user?.role === "volunteer") return "volunteer-dashboard";
+  if (user?.role === "donor") return "donor-dashboard";
+  return "landing";
 }
 
 async function apiRequest(path, options = {}) {
@@ -2841,11 +2850,7 @@ function Login({ go, toast, onSignIn }) {
 
       toast("Logged in successfully");
 
-      if (signedInUser.role === "volunteer") {
-        go("volunteer-dashboard");
-      } else {
-        go("dashboard");
-      }
+      go(dashboardForRole(signedInUser));
     } catch (error) {
       console.error("Login error:", error);
       toast(error.message || "Login failed", "error");
@@ -2921,7 +2926,7 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         name: name.trim(),
         email: email.trim(),
         password: pwd,
-        role: role === "volunteer" ? "VOLUNTEER" : "NGO",
+        role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "NGO" : "DONOR",
         location: role === "org" ? orgAddress : "",
         bio: role === "org" ? orgName : "",
         skills: "",
@@ -2951,7 +2956,7 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         addOrg?.(org);
       }
       toast("Account created — welcome to ResQBite!");
-      go(role === "volunteer" ? "volunteer-dashboard" : "dashboard");
+      go(dashboardForRole(normalizeApiUser(data.user)));
     } catch (error) {
       console.error("Signup error:", error);
       toast(error.message || "Could not create account", "error");
@@ -3975,6 +3980,13 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
 
 function Skeleton({ h = 16, w = "100%", r = 8 }) {
   return <div className="rq-shimmer" style={{ height: h, width: w, borderRadius: r }} />;
+}
+
+function DashboardRedirect({ user, go }) {
+  useEffect(() => {
+    go(dashboardForRole(user));
+  }, [go, user]);
+  return null;
 }
 
 function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
@@ -5752,10 +5764,17 @@ export default function ResQBiteApp() {
     dashboard: isLoggedIn
       ? (user?.role === "volunteer"
         ? <VolunteerDashboard go={go} user={user} onSignOut={signOut} />
-        : <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />)
+        : user?.role === "donor"
+          ? <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />
+          : <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />)
       : <Login go={go} toast={push} onSignIn={signIn} />,
+    "donor-dashboard": isLoggedIn && user?.role === "donor"
+      ? <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />
+      : isLoggedIn ? <DashboardRedirect user={user} go={go} /> : <Login go={go} toast={push} onSignIn={signIn} />,
     "volunteer-dashboard": isLoggedIn
-      ? <VolunteerDashboard go={go} user={user} onSignOut={signOut} />
+      ? user?.role === "volunteer"
+        ? <VolunteerDashboard go={go} user={user} onSignOut={signOut} />
+        : <DashboardRedirect user={user} go={go} />
       : <Login go={go} toast={push} onSignIn={signIn} />,
     organizations: <OrganizationsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} orgs={orgs} />,
     about: <AboutPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
