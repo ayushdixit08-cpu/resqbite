@@ -39,7 +39,7 @@ public class ConnectionService {
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
         User recipient = request.recipientId() == null
                 ? userRepository.findAll().stream()
-                .filter(user -> user.getRole() == User.UserType.NGO)
+                .filter(user -> user.getRole() == User.UserType.ORGANIZATION)
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("No recipient organization is available"))
                 : userRepository.findById(request.recipientId())

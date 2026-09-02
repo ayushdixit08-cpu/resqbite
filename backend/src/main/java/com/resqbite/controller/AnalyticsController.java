@@ -25,7 +25,7 @@ public class AnalyticsController {
     public ResponseEntity<Map<String, Object>> overview() {
         Map<String, Object> payload = new HashMap<>();
         long activeVolunteers = userRepository.findAll().stream().filter(u -> u.getRole() == User.UserType.VOLUNTEER).count();
-        long activeNgos = userRepository.findAll().stream().filter(u -> u.getRole() == User.UserType.NGO).count();
+        long activeNgos = userRepository.findAll().stream().filter(u -> u.getRole() == User.UserType.ORGANIZATION).count();
         payload.put("totalVolunteers", activeVolunteers);
         payload.put("totalNgos", activeNgos);
         payload.put("activeConnections", 0);
@@ -38,7 +38,7 @@ public class AnalyticsController {
     public ResponseEntity<Map<String, Object>> topNgos() {
         Map<String, Object> payload = new HashMap<>();
         payload.put("ngos", userRepository.findAll().stream()
-                .filter(u -> u.getRole() == User.UserType.NGO)
+                .filter(u -> u.getRole() == User.UserType.ORGANIZATION)
                 .limit(5)
                 .toList());
         return ResponseEntity.ok(payload);

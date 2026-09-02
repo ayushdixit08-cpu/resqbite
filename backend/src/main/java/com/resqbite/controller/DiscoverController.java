@@ -30,7 +30,7 @@ public class DiscoverController {
     @GetMapping("/api/organizations")
     public ResponseEntity<List<UserDto>> organizations() {
         List<User> ngos = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == User.UserType.NGO)
+                .filter(u -> u.getRole() == User.UserType.ORGANIZATION)
                 .toList();
         return ResponseEntity.ok(ngos.stream().map(UserDto::from).toList());
     }

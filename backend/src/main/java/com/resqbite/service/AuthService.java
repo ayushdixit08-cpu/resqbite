@@ -63,7 +63,7 @@ public class AuthService {
 
         if (role == User.UserType.VOLUNTEER) {
             volunteerRepository.save(new Volunteer(user, "Flexible", request.interests(), request.skills()));
-        } else if (role == User.UserType.NGO) {
+        } else if (role == User.UserType.ORGANIZATION) {
             ngoRepository.save(new Ngo(user, request.bio(), request.location(), "Open for collaboration", ""));
         }
 

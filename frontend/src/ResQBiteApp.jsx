@@ -2926,7 +2926,7 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         name: name.trim(),
         email: email.trim(),
         password: pwd,
-        role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "NGO" : "DONOR",
+        role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "ORGANIZATION" : "DONOR",
         location: role === "org" ? orgAddress : "",
         bio: role === "org" ? orgName : "",
         skills: "",
