@@ -14,6 +14,13 @@ mvn spring-boot:run
 
 The app listens on `http://localhost:5000`.
 
+The production service is `resqbite-2`:
+`https://resqbite-2.onrender.com`.
+
+Set `CORS_ALLOWED_ORIGINS` in Render to the deployed frontend origin
+(comma-separated if more than one). Local defaults allow Vite development
+origins.
+
 ## Frontend connection
 
 Set the frontend environment to:
