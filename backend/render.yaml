@@ -24,5 +24,3 @@
         value: 86400000
       - key: CORS_ALLOWED_ORIGINS
         sync: false
-      - key: CORS_ALLOWED_ORIGINS
-        sync: false
