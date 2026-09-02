@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
@@ -41,5 +42,20 @@ public class AnalyticsController {
                 .limit(5)
                 .toList());
         return ResponseEntity.ok(payload);
+    }
+
+    @GetMapping("/analytics/weekly")
+    public ResponseEntity<Map<String, Object>> weekly() {
+        return ResponseEntity.ok(Map.of("weekly", List.of()));
+    }
+
+    @GetMapping("/analytics/food-mix")
+    public ResponseEntity<Map<String, Object>> foodMix() {
+        return ResponseEntity.ok(Map.of("foodMix", List.of()));
+    }
+
+    @GetMapping("/analytics/status-breakdown")
+    public ResponseEntity<Map<String, Object>> statusBreakdown() {
+        return ResponseEntity.ok(Map.of("statusBreakdown", List.of()));
     }
 }

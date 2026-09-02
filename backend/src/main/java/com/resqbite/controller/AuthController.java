@@ -3,8 +3,11 @@ package com.resqbite.controller;
 import com.resqbite.dto.AuthResponse;
 import com.resqbite.dto.LoginRequest;
 import com.resqbite.dto.RegisterRequest;
+import com.resqbite.dto.UserDto;
+import com.resqbite.entity.User;
 import com.resqbite.service.AuthService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,5 +28,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserDto> me(@AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(UserDto.from(currentUser));
     }
 }

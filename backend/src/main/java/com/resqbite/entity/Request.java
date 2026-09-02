@@ -68,7 +68,8 @@ public class Request {
 
     public enum RequestType {
         VOLUNTEER_TO_NGO,
-        NGO_TO_VOLUNTEER
+        NGO_TO_VOLUNTEER,
+        FOOD_DONATION
     }
 
     public enum RequestStatus {

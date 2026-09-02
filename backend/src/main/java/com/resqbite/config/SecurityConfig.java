@@ -18,8 +18,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
+import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
@@ -27,10 +29,13 @@ public class SecurityConfig {
 
     private final UserRepository userRepository;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final String allowedOrigins;
 
-    public SecurityConfig(UserRepository userRepository, JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(UserRepository userRepository, JwtAuthenticationFilter jwtAuthenticationFilter,
+                          @Value("${app.cors.allowed-origins}") String allowedOrigins) {
         this.userRepository = userRepository;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -40,7 +45,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/auth/**", "/api/health", "/api/organizations", "/api/volunteers", "/api/ngos/**", "/api/discover/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health",
+                                "/api/organizations", "/api/volunteers", "/api/ngos/**",
+                                "/api/discover/**", "/api/analytics/**").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -76,7 +83,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         return request -> {
             CorsConfiguration config = new CorsConfiguration();
-            config.setAllowedOriginPatterns(List.of("*"));
+            config.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(","))
+                    .map(String::trim)
+                    .filter(origin -> !origin.isEmpty())
+                    .toList());
             config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
             config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
             config.setAllowCredentials(true);

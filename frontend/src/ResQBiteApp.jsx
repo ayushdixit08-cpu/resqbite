@@ -14,6 +14,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
+import { API_BASE_URL } from "./services/api";
 
 /* ============================================================
    BACKEND API CLIENT
@@ -22,7 +23,7 @@ import {
    RESQBITE_API_URL at your deployed backend to go live; until
    then, calls fail quietly and the UI falls back to sample data.
 ============================================================= */
-const RESQBITE_API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const RESQBITE_API_URL = API_BASE_URL;
 
 // Lightweight in-memory response cache, keyed by request path. Lives for
 // the SPA session (module scope, not component state) so navigating away
@@ -37,12 +38,22 @@ function getAuthToken() {
   return localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token");
 }
 
+function normalizeApiUser(apiUser) {
+  if (!apiUser) return null;
+  const isVolunteer = apiUser.role?.toUpperCase() === "VOLUNTEER";
+  return {
+    ...apiUser,
+    role: isVolunteer ? "volunteer" : "org",
+    ...(isVolunteer ? {} : { org: { name: apiUser.bio || apiUser.name } }),
+  };
+}
+
 async function apiRequest(path, options = {}) {
   if (apiResultCache.has(path)) return apiResultCache.get(path);
   if (apiInFlight.has(path)) return apiInFlight.get(path);
   const promise = (async () => {
     const res = await fetch(`${RESQBITE_API_URL}${path}`, options);
-    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    if (!res.ok) throw new Error(`API request failed: ${res.status} ${res.statusText}`);
     const data = await res.json();
     apiResultCache.set(path, data);
     return data;
@@ -64,15 +75,20 @@ async function authenticatedRequest(path, options = {}) {
     ...options.headers,
   };
   
-  const res = await fetch(`${RESQBITE_API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let res;
+  try {
+    res = await fetch(`${RESQBITE_API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    throw new Error(`Unable to reach the API at ${RESQBITE_API_URL}: ${error.message}`, { cause: error });
+  }
   
   if (!res.ok) {
     if (res.status === 401) throw new Error("Unauthorized");
     if (res.status === 404) throw new Error("Not found");
-    throw new Error(`Request failed: ${res.status}`);
+    throw new Error(`API request failed: ${res.status} ${res.statusText}`);
   }
   
   return await res.json();
@@ -2811,8 +2827,8 @@ function Login({ go, toast, onSignIn }) {
 
       const data = await res.json();
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Invalid email or password");
+      if (!res.ok || !data.token || !data.user) {
+        throw new Error(data.error || "Invalid email or password");
       }
 
       // Save the JWT returned by the backend
@@ -2820,11 +2836,12 @@ function Login({ go, toast, onSignIn }) {
       storage.setItem("resqbite_token", data.token);
 
       // Use the real database user returned by the backend
-      onSignIn?.(data.user);
+      const signedInUser = normalizeApiUser(data.user);
+      onSignIn?.(signedInUser);
 
       toast("Logged in successfully");
 
-      if (data.user.role === "volunteer") {
+      if (signedInUser.role === "volunteer") {
         go("volunteer-dashboard");
       } else {
         go("dashboard");
@@ -2904,25 +2921,25 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         name: name.trim(),
         email: email.trim(),
         password: pwd,
-        role,
-        phone: role === "org" ? orgPhone : "",
-        organization_name: role === "org" ? orgName : "",
-        address: role === "org" ? orgAddress : "",
-        city: role === "org" ? "" : "",
+        role: role === "volunteer" ? "VOLUNTEER" : "NGO",
+        location: role === "org" ? orgAddress : "",
+        bio: role === "org" ? orgName : "",
+        skills: "",
+        interests: "",
       };
 
-      const res = await fetch(`${RESQBITE_API_URL}/auth/signup`, {
+      const res = await fetch(`${RESQBITE_API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || data.errors?.[0]?.msg || "Account creation failed");
+      if (!res.ok || !data.token || !data.user) {
+        throw new Error(data.error || "Account creation failed");
       }
 
       localStorage.setItem("resqbite_token", data.token);
-      onSignIn?.(data.user);
+      onSignIn?.(normalizeApiUser(data.user));
       await storeSet(accountKey(email), data.user);
       if (needsOrgStep) {
         const org = {
@@ -3410,15 +3427,23 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
       }
 
       const token = getAuthToken();
-      const res = await fetch(`${RESQBITE_API_URL}/donations`, {
+      const res = await fetch(`${RESQBITE_API_URL}/requests`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          recipientId: null,
+          type: "FOOD_DONATION",
+          message: `${foodName.trim()} (${servings} servings) available at ${pickupLocation.trim()}`,
+          activityTitle: foodName.trim(),
+        }),
       });
       const data = await res.json();
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Donation could not be created");
+      if (!res.ok) {
+        throw new Error(data.error || `API request failed: ${res.status} ${res.statusText}`);
       }
 
       toast("Food request submitted successfully.");
@@ -5638,8 +5663,8 @@ export default function ResQBiteApp() {
           throw new Error(`Auth check failed: ${res.status}`);
         }
         const data = await res.json();
-        if (data?.success && data.user) {
-          setUser(data.user);
+        if (data) {
+          setUser(normalizeApiUser(data));
           setIsLoggedIn(true);
         } else {
           throw new Error("No user returned");

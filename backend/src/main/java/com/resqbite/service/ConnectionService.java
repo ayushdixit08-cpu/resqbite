@@ -37,7 +37,12 @@ public class ConnectionService {
     public RequestDto createRequest(Long senderId, CreateRequestRequest request) {
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
-        User recipient = userRepository.findById(request.recipientId())
+        User recipient = request.recipientId() == null
+                ? userRepository.findAll().stream()
+                .filter(user -> user.getRole() == User.UserType.NGO)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No recipient organization is available"))
+                : userRepository.findById(request.recipientId())
                 .orElseThrow(() -> new IllegalArgumentException("Recipient not found"));
 
         Request.RequestType type = request.type() == null
