@@ -172,6 +172,9 @@ public class ConnectionService {
     public OpportunityDto createOpportunity(Long ngoId, OpportunityRequest request) {
         User ngo = userRepository.findById(ngoId)
                 .orElseThrow(() -> new IllegalArgumentException("NGO not found"));
+        if (ngo.getRole() != User.UserType.ORGANIZATION) {
+            throw new IllegalArgumentException("Only organizations can create opportunities");
+        }
         Opportunity opportunity = new Opportunity(
                 ngo,
                 request.title(),

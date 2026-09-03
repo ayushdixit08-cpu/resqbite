@@ -12,4 +12,6 @@ public interface RequestRepository extends JpaRepository<Request, Long> {
     List<Request> findByRecipientId(Long recipientId);
     List<Request> findByRecipientIdAndStatus(Long recipientId, Request.RequestStatus status);
     List<Request> findBySenderIdAndRecipientId(Long senderId, Long recipientId);
+    List<Request> findBySenderIdAndTypeOrderByCreatedAtDesc(Long senderId, Request.RequestType type);
+    List<Request> findByTypeOrderByCreatedAtDesc(Request.RequestType type);
 }

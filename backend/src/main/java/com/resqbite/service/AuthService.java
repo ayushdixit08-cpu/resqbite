@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Locale;
 
 @Service
 public class AuthService {
@@ -43,12 +44,26 @@ public class AuthService {
     }
 
     public AuthResponse register(RegisterRequest request) {
-        String email = request.email().trim();
+        if (request.email() == null || request.password() == null || request.role() == null
+                || request.name() == null || request.email().isBlank() || request.password().isBlank()) {
+            throw new IllegalArgumentException("Name, email, password, and role are required");
+        }
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (userRepository.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("Email already in use");
         }
 
-        User.UserType role = User.UserType.valueOf(request.role().toUpperCase());
+        final User.UserType role;
+        try {
+            String rawRole = request.role().trim().toUpperCase(Locale.ROOT);
+            String normalizedRole = switch (rawRole) {
+                case "NGO", "ORG" -> "ORGANIZATION";
+                default -> rawRole;
+            };
+            role = User.UserType.valueOf(normalizedRole);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Role must be volunteer, organization, or donor");
+        }
         User user = new User(
                 request.name(),
                 email,
@@ -76,11 +91,15 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
+        if (request.email() == null || request.password() == null
+                || request.email().isBlank() || request.password().isBlank()) {
+            throw new IllegalArgumentException("Email and password are required");
+        }
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password())
+                new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(Locale.ROOT), request.password())
         );
 
-        User user = userRepository.findByEmail(request.email())
+        User user = userRepository.findByEmail(request.email().trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         String token = jwtService.generateToken(user.getEmail(), Map.of(

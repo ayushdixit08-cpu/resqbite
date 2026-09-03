@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import {
-  Menu, X, ChevronRight, MapPin, Clock, Users, Leaf, Camera, Upload,
+  Menu, X, ChevronRight, MapPin, Clock, Users, Leaf, Camera,
   CheckCircle2, AlertCircle, Star, TrendingUp, Package, Truck, Bell,
   Search, Filter, Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight,
   Sparkles, Navigation, Phone, Award, BarChart3, Heart, ShieldCheck,
@@ -15,6 +15,7 @@ import {
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
 import { API_BASE_URL } from "./services/api";
+import { authService } from "./services/authService";
 
 /* ============================================================
    BACKEND API CLIENT
@@ -2823,21 +2824,13 @@ function Login({ go, toast, onSignIn }) {
     setLoggingIn(true);
 
     try {
-      const res = await fetch(`${RESQBITE_API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: pwd,
-        }),
+      const data = await authService.login({
+        email: email.trim(),
+        password: pwd,
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.token || !data.user) {
-        throw new Error(data.error || "Invalid email or password");
+      if (!data?.token || !data?.user) {
+        throw new Error("Invalid email or password");
       }
 
       // Save the JWT returned by the backend
@@ -2933,14 +2926,9 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         interests: "",
       };
 
-      const res = await fetch(`${RESQBITE_API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.token || !data.user) {
-        throw new Error(data.error || "Account creation failed");
+      const data = await authService.register(payload);
+      if (!data?.token || !data?.user) {
+        throw new Error("Account creation failed");
       }
 
       localStorage.setItem("resqbite_token", data.token);
@@ -3436,7 +3424,7 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           recipientId: null,
@@ -5636,6 +5624,7 @@ const PAGE_TITLES = {
   tracking: "Track your donation | ResQBite",
   dashboard: "Dashboard | ResQBite",
   "volunteer-dashboard": "Volunteer Dashboard | ResQBite",
+  "organization-dashboard": "Organization Dashboard | ResQBite",
   organizations: "Organizations | ResQBite",
   about: "About Us | ResQBite",
   corporate: "Corporate Partnerships | ResQBite",
@@ -5667,14 +5656,8 @@ export default function ResQBiteApp() {
     const token = getAuthToken();
     if (!token) return;
 
-    fetch(`${RESQBITE_API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Auth check failed: ${res.status}`);
-        }
-        const data = await res.json();
+    authService.me()
+      .then((data) => {
         if (data) {
           setUser(normalizeApiUser(data));
           setIsLoggedIn(true);
@@ -5774,6 +5757,11 @@ export default function ResQBiteApp() {
     "volunteer-dashboard": isLoggedIn
       ? user?.role === "volunteer"
         ? <VolunteerDashboard go={go} user={user} onSignOut={signOut} />
+        : <DashboardRedirect user={user} go={go} />
+      : <Login go={go} toast={push} onSignIn={signIn} />,
+    "organization-dashboard": isLoggedIn
+      ? user?.role === "org"
+        ? <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />
         : <DashboardRedirect user={user} go={go} />
       : <Login go={go} toast={push} onSignIn={signIn} />,
     organizations: <OrganizationsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} orgs={orgs} />,

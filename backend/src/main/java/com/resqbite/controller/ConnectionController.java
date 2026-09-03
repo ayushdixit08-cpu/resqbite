@@ -5,6 +5,7 @@ import com.resqbite.entity.User;
 import com.resqbite.service.ConnectionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -81,6 +82,7 @@ public class ConnectionController {
     }
 
     @PostMapping("/api/opportunities")
+    @PreAuthorize("hasRole('ORGANIZATION')")
     public ResponseEntity<OpportunityDto> createOpportunity(@AuthenticationPrincipal User currentUser,
                                                           @RequestBody OpportunityRequest request) {
         return ResponseEntity.ok(connectionService.createOpportunity(currentUser.getId(), request));
