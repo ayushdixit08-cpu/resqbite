@@ -8,7 +8,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.*;
 
 @RestController
@@ -34,13 +33,13 @@ public class DonationController {
     @PostMapping("/donations")
     public ResponseEntity<Map<String, Object>> create(@AuthenticationPrincipal User user,
                                                        @RequestBody Map<String, Object> body) {
-        User recipient = users.findAll().stream()
-                .filter(u -> u.getRole() == User.UserType.ORGANIZATION).findFirst()
+        User recipient = users.findFirstByRole(User.UserType.ORGANIZATION)
                 .orElseThrow(() -> new IllegalArgumentException("No recipient organization is available"));
         String title = stringValue(body, "title", "food", "activityTitle");
         String message = stringValue(body, "message", "description");
         Request donation = new Request(user, recipient, Request.RequestType.FOOD_DONATION,
                 message == null ? title : message, title);
+        donation.setStatus(Request.RequestStatus.AVAILABLE);
         return ResponseEntity.ok(toDonation(requests.save(donation)));
     }
 
@@ -82,6 +81,22 @@ public class DonationController {
         }
         requests.delete(donation);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/donations/{id}/claim")
+    public ResponseEntity<Map<String, Object>> claim(@PathVariable Long id,
+                                                      @AuthenticationPrincipal User user) {
+        if (user == null || user.getRole() != User.UserType.ORGANIZATION) {
+            return ResponseEntity.status(403).build();
+        }
+        Request donation = donation(id);
+        if (donation.getStatus() != Request.RequestStatus.AVAILABLE
+                && donation.getStatus() != Request.RequestStatus.PENDING) {
+            return ResponseEntity.status(409).build();
+        }
+        donation.setRecipient(user);
+        donation.setStatus(Request.RequestStatus.ACCEPTED);
+        return ResponseEntity.ok(toDonation(requests.save(donation)));
     }
 
     private Request donation(Long id) {

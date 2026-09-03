@@ -5,7 +5,10 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "requests")
+@Table(name = "requests", indexes = {
+        @Index(name = "idx_requests_sender_type_created", columnList = "sender_id, type, created_at"),
+        @Index(name = "idx_requests_recipient_type_status", columnList = "recipient_id, type, status")
+})
 public class Request {
 
     @Id
@@ -19,6 +22,10 @@ public class Request {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
     private User recipient;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "volunteer_id")
+    private User volunteer;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -53,6 +60,8 @@ public class Request {
     public void setSender(User sender) { this.sender = sender; }
     public User getRecipient() { return recipient; }
     public void setRecipient(User recipient) { this.recipient = recipient; }
+    public User getVolunteer() { return volunteer; }
+    public void setVolunteer(User volunteer) { this.volunteer = volunteer; }
     public RequestType getType() { return type; }
     public void setType(RequestType type) { this.type = type; }
     public RequestStatus getStatus() { return status; }
@@ -73,8 +82,13 @@ public class Request {
     }
 
     public enum RequestStatus {
+        AVAILABLE,
         PENDING,
         ACCEPTED,
+        PICKUP_SCHEDULED,
+        PICKED_UP,
+        IN_TRANSIT,
+        DELIVERED,
         REJECTED,
         CANCELLED,
         COMPLETED

@@ -29,17 +29,13 @@ public class DiscoverController {
 
     @GetMapping("/api/organizations")
     public ResponseEntity<List<UserDto>> organizations() {
-        List<User> ngos = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == User.UserType.ORGANIZATION)
-                .toList();
+        List<User> ngos = userRepository.findByRole(User.UserType.ORGANIZATION);
         return ResponseEntity.ok(ngos.stream().map(UserDto::from).toList());
     }
 
     @GetMapping("/api/volunteers")
     public ResponseEntity<List<UserDto>> volunteers() {
-        List<User> volunteers = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == User.UserType.VOLUNTEER)
-                .toList();
+        List<User> volunteers = userRepository.findByRole(User.UserType.VOLUNTEER);
         return ResponseEntity.ok(volunteers.stream().map(UserDto::from).toList());
     }
 

@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
-import { API_BASE_URL, apiRequest } from "./services/api";
+import { API_BASE_URL } from "./services/api";
 import { authService } from "./services/authService";
 
 /* ============================================================
@@ -59,20 +59,21 @@ function dashboardForRole(user) {
 }
 
 async function apiRequest(path, options = {}) {
-  if (apiResultCache.has(path)) return apiResultCache.get(path);
-  if (apiInFlight.has(path)) return apiInFlight.get(path);
+  const cacheable = !options.method || options.method.toUpperCase() === "GET";
+  if (cacheable && apiResultCache.has(path)) return apiResultCache.get(path);
+  if (cacheable && apiInFlight.has(path)) return apiInFlight.get(path);
   const promise = (async () => {
     const res = await fetch(`${RESQBITE_API_URL}${path}`, options);
     if (!res.ok) throw new Error(`API request failed: ${res.status} ${res.statusText}`);
     const data = await res.json();
-    apiResultCache.set(path, data);
+    if (cacheable) apiResultCache.set(path, data);
     return data;
   })();
-  apiInFlight.set(path, promise);
+  if (cacheable) apiInFlight.set(path, promise);
   try {
     return await promise;
   } finally {
-    apiInFlight.delete(path);
+    if (cacheable) apiInFlight.delete(path);
   }
 }
 
@@ -3439,7 +3440,7 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
         throw new Error(data.error || `API request failed: ${res.status} ${res.statusText}`);
       }
 
-      toast("Food request submitted successfully.");
+      toast("Food donation submitted successfully.");
       go("dashboard");
     } catch (error) {
       console.error("Donation submit error:", error);
@@ -4455,6 +4456,29 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
   const orgData = useOrgData();
   const [search, setSearch] = useState("");
   const [requested, setRequested] = useState({});
+  const [availableFood, setAvailableFood] = useState(AVAILABLE_FOOD);
+
+  useEffect(() => {
+    if (!isOrg) return;
+    let cancelled = false;
+    authenticatedRequest("/donations")
+      .then((rows) => {
+        const donations = (Array.isArray(rows) ? rows : rows?.donations || [])
+          .filter((donation) => ["available", "pending"].includes(String(donation.status).toLowerCase()))
+          .map((donation) => ({
+            ...donation,
+            name: donation.name || donation.food || donation.title,
+            quantity: donation.quantity || "Available",
+            meals: donation.meals || donation.servings || "—",
+            provider: donation.donor || "Food provider",
+            location: donation.pickupLocation || donation.location || "Pickup location unavailable",
+            pickupTime: donation.pickupTime || "Contact provider",
+          }));
+        if (!cancelled && donations.length > 0) setAvailableFood(donations);
+      })
+      .catch(() => { /* Keep the existing layout fallback if the API is unavailable. */ });
+    return () => { cancelled = true; };
+  }, [isOrg]);
 
   // Items already requested this session, PLUS anything already active
   // in the shared org request store (so the flag survives navigating
@@ -4463,8 +4487,17 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
     orgData.requests.filter((r) => isOrgRequestActive(r.status)).map((r) => r.food)
   );
 
-  const requestFood = (item) => {
+  const requestFood = async (item) => {
     setRequested((prev) => ({ ...prev, [item.name]: true }));
+    if (Number.isInteger(Number(item.id))) {
+      try {
+        await authenticatedRequest(`/donations/${item.id}/claim`, { method: "POST" });
+      } catch (error) {
+        setRequested((prev) => ({ ...prev, [item.name]: false }));
+        toast(error.message || "Unable to request this food", "error");
+        return;
+      }
+    }
     // Creates a real "Requested" record in the same store the Track
     // page and Dashboard read from — this is the start of the
     // Requested -> ... -> Delivered lifecycle, not just a local flag.
@@ -4501,7 +4534,7 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
     );
   }
 
-  const results = AVAILABLE_FOOD.filter((f) =>
+  const results = availableFood.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()) || f.provider.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -4837,6 +4870,19 @@ const STATUS_ACTION = {
   "In Transit": { next: "Delivered", label: "Confirm Delivery", icon: MapPin, hint: "Confirm the food has reached the organization." },
   "Delivered": { next: "Completed", label: "Complete Task", icon: Award, hint: "Close out this pickup as fully completed." },
 };
+const BACKEND_TASK_STATUS = {
+  available: "Assigned",
+  pending: "Assigned",
+  accepted: "Assigned",
+  pickup_scheduled: "Pickup Started",
+  picked_up: "Picked Up",
+  in_transit: "In Transit",
+  delivered: "Delivered",
+  completed: "Completed",
+};
+function normalizeTaskStatus(status) {
+  return BACKEND_TASK_STATUS[String(status || "").toLowerCase()] || status;
+}
 const POINTS_PER_TASK = 20;
 const POINTS_PER_MEAL = 1;
 
@@ -4920,7 +4966,8 @@ function useVolunteerData(user) {
           available: profilePayload.available ?? true,
         },
         available: Array.isArray(avRes?.pickups) ? avRes.pickups : Array.isArray(avRes) ? avRes : [],
-        tasks: Array.isArray(tkRes?.tasks) ? tkRes.tasks : Array.isArray(tkRes) ? tkRes : [],
+        tasks: (Array.isArray(tkRes?.tasks) ? tkRes.tasks : Array.isArray(tkRes) ? tkRes : [])
+          .map((task) => ({ ...task, status: normalizeTaskStatus(task.status) })),
         notifications: normalizeNotifications(ntRes?.notifications || ntRes || []),
         history: Array.isArray(hiRes?.history) ? hiRes.history : Array.isArray(hiRes) ? hiRes : [],
       };

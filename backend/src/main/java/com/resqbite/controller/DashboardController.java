@@ -6,8 +6,6 @@ import com.resqbite.repository.RequestRepository;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @RestController
@@ -18,17 +16,17 @@ public class DashboardController {
 
     @GetMapping
     public Map<String, Object> dashboard(@AuthenticationPrincipal User user) {
-        List<Request> donations = requests.findBySenderIdAndTypeOrderByCreatedAtDesc(
-                user.getId(), Request.RequestType.FOOD_DONATION);
-        long delivered = donations.stream().filter(r -> r.getStatus() == Request.RequestStatus.COMPLETED).count();
-        long active = donations.stream().filter(r -> r.getStatus() != Request.RequestStatus.COMPLETED
-                && r.getStatus() != Request.RequestStatus.CANCELLED
-                && r.getStatus() != Request.RequestStatus.REJECTED).count();
+        long total = requests.countBySenderIdAndType(user.getId(), Request.RequestType.FOOD_DONATION);
+        long delivered = requests.countBySenderIdAndTypeAndStatus(
+                user.getId(), Request.RequestType.FOOD_DONATION, Request.RequestStatus.COMPLETED);
+        long active = requests.countBySenderIdAndTypeAndStatusNotIn(
+                user.getId(), Request.RequestType.FOOD_DONATION,
+                List.of(Request.RequestStatus.COMPLETED, Request.RequestStatus.CANCELLED, Request.RequestStatus.REJECTED));
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("activeDonations", active); stats.put("inTransit", 0);
-        stats.put("mealsDonated", donations.size()); stats.put("deliveredDonations", delivered);
-        stats.put("totalDonations", donations.size());
-        stats.put("todayDonations", donations.stream().filter(r -> r.getCreatedAt().isAfter(Instant.now().minus(1, ChronoUnit.DAYS))).count());
+        stats.put("mealsDonated", total); stats.put("deliveredDonations", delivered);
+        stats.put("totalDonations", total);
+        stats.put("todayDonations", 0);
         return Map.of("stats", stats, "weeklyMeals", List.of(), "weeklyChange", 0);
     }
 }

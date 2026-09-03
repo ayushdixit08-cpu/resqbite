@@ -24,8 +24,11 @@ public class VolunteerController {
     @GetMapping("/pickups/available")
     public List<Map<String, Object>> available(@AuthenticationPrincipal User user) {
         requireVolunteer(user);
-        return requests.findByTypeOrderByCreatedAtDesc(Request.RequestType.FOOD_DONATION).stream()
-                .filter(request -> request.getStatus() == Request.RequestStatus.PENDING)
+        return requests.findByTypeAndStatusInOrderByCreatedAtDesc(
+                        Request.RequestType.FOOD_DONATION,
+                        List.of(Request.RequestStatus.AVAILABLE, Request.RequestStatus.PENDING,
+                                Request.RequestStatus.ACCEPTED)).stream()
+                .filter(request -> request.getVolunteer() == null)
                 .map(this::toTask)
                 .toList();
     }
@@ -34,7 +37,8 @@ public class VolunteerController {
     public List<Map<String, Object>> tasks(@AuthenticationPrincipal User user) {
         requireVolunteer(user);
         return requests.findByTypeOrderByCreatedAtDesc(Request.RequestType.FOOD_DONATION).stream()
-                .filter(request -> request.getStatus() != Request.RequestStatus.PENDING)
+                .filter(request -> request.getVolunteer() != null
+                        && request.getVolunteer().getId().equals(user.getId()))
                 .map(this::toTask)
                 .toList();
     }
@@ -44,9 +48,12 @@ public class VolunteerController {
                                                        @AuthenticationPrincipal User user) {
         requireVolunteer(user);
         Request request = donation(id);
-        if (request.getStatus() != Request.RequestStatus.PENDING) {
+        if (request.getStatus() != Request.RequestStatus.AVAILABLE
+                && request.getStatus() != Request.RequestStatus.PENDING
+                && request.getStatus() != Request.RequestStatus.ACCEPTED) {
             return ResponseEntity.status(409).build();
         }
+        request.setVolunteer(user);
         request.setStatus(Request.RequestStatus.ACCEPTED);
         return ResponseEntity.ok(toTask(requests.save(request)));
     }
@@ -57,15 +64,35 @@ public class VolunteerController {
                                                              @RequestBody Map<String, Object> body) {
         requireVolunteer(user);
         Request request = donation(id);
+        if (request.getVolunteer() == null || !request.getVolunteer().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).build();
+        }
         String rawStatus = String.valueOf(body.getOrDefault("status", ""));
-        Request.RequestStatus status = switch (rawStatus.toUpperCase(Locale.ROOT)) {
-            case "ASSIGNED", "PICKUP_STARTED" -> Request.RequestStatus.ACCEPTED;
-            case "PICKED_UP", "IN_TRANSIT" -> Request.RequestStatus.ACCEPTED;
-            case "DELIVERED", "COMPLETED" -> Request.RequestStatus.COMPLETED;
+        Request.RequestStatus current = request.getStatus();
+        Request.RequestStatus status = switch (rawStatus.toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_')) {
+            case "ASSIGNED", "PICKUP_STARTED" -> Request.RequestStatus.PICKUP_SCHEDULED;
+            case "PICKED_UP" -> Request.RequestStatus.PICKED_UP;
+            case "IN_TRANSIT" -> Request.RequestStatus.IN_TRANSIT;
+            case "DELIVERED" -> Request.RequestStatus.DELIVERED;
+            case "COMPLETED" -> Request.RequestStatus.COMPLETED;
             default -> throw new IllegalArgumentException("Unsupported task status");
         };
+        if (!isValidTransition(current, status)) {
+            return ResponseEntity.status(409).build();
+        }
         request.setStatus(status);
         return ResponseEntity.ok(toTask(requests.save(request)));
+    }
+
+    private boolean isValidTransition(Request.RequestStatus current, Request.RequestStatus next) {
+        return switch (current) {
+            case ACCEPTED -> next == Request.RequestStatus.PICKUP_SCHEDULED;
+            case PICKUP_SCHEDULED -> next == Request.RequestStatus.PICKED_UP;
+            case PICKED_UP -> next == Request.RequestStatus.IN_TRANSIT;
+            case IN_TRANSIT -> next == Request.RequestStatus.DELIVERED;
+            case DELIVERED -> next == Request.RequestStatus.COMPLETED;
+            default -> false;
+        };
     }
 
     private Request donation(Long id) {
