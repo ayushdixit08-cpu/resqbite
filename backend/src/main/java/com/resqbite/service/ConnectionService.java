@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -45,12 +46,25 @@ public class ConnectionService {
                 : userRepository.findById(request.recipientId())
                 .orElseThrow(() -> new IllegalArgumentException("Recipient not found"));
 
-        Request.RequestType type = request.type() == null
-                ? Request.RequestType.VOLUNTEER_TO_NGO
-                : Request.RequestType.valueOf(request.type().toUpperCase());
+        Request.RequestType type = parseRequestType(request.type());
 
         Request entity = new Request(sender, recipient, type, request.message(), request.activityTitle());
         return RequestDto.from(requestRepository.save(entity));
+    }
+
+    private Request.RequestType parseRequestType(String rawType) {
+        if (rawType == null || rawType.isBlank()) {
+            return Request.RequestType.VOLUNTEER_TO_NGO;
+        }
+        String normalized = rawType.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "FOOD_DONATION", "DONATION", "DONATE" -> Request.RequestType.FOOD_DONATION;
+            case "FOOD_REQUEST", "REQUEST" -> Request.RequestType.FOOD_DONATION;
+            case "VOLUNTEER_TO_NGO" -> Request.RequestType.VOLUNTEER_TO_NGO;
+            case "NGO_TO_VOLUNTEER" -> Request.RequestType.NGO_TO_VOLUNTEER;
+            default -> throw new IllegalArgumentException(
+                    "Unsupported request type. Use FOOD_DONATION, VOLUNTEER_TO_NGO, or NGO_TO_VOLUNTEER");
+        };
     }
 
     @Transactional

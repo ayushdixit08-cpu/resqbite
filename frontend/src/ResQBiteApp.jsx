@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
-import { API_BASE_URL } from "./services/api";
+import { API_BASE_URL, apiRequest } from "./services/api";
 import { authService } from "./services/authService";
 
 /* ============================================================
