@@ -1,4 +1,6 @@
-const configuredApiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const configuredApiUrl = import.meta.env.VITE_API_BASE_URL
+  || import.meta.env.VITE_API_URL
+  || "http://localhost:5000/api";
 export const API_BASE_URL = configuredApiUrl.replace(/\/+$/, "");
 const apiResultCache = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
@@ -23,7 +25,8 @@ function buildHeaders(headers = {}) {
 
 export async function apiRequest(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
-  const cacheable = !options.method || options.method.toUpperCase() === "GET";
+  const cacheable = (!options.method || options.method.toUpperCase() === "GET")
+    && !path.startsWith("/auth/");
   if (cacheable && apiResultCache.has(path)) return apiResultCache.get(path);
   let response;
   const controller = new AbortController();

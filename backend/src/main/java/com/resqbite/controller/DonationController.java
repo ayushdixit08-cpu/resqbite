@@ -24,7 +24,10 @@ public class DonationController {
 
     @GetMapping("/donations")
     public List<Map<String, Object>> list(@AuthenticationPrincipal User user) {
-        return requests.findBySenderIdAndTypeOrderByCreatedAtDesc(user.getId(), Request.RequestType.FOOD_DONATION)
+        List<Request> donations = user.getRole() == User.UserType.DONOR
+                ? requests.findBySenderIdAndTypeOrderByCreatedAtDesc(user.getId(), Request.RequestType.FOOD_DONATION)
+                : requests.findByTypeOrderByCreatedAtDesc(Request.RequestType.FOOD_DONATION);
+        return donations
                 .stream().map(this::toDonation).toList();
     }
 
@@ -54,6 +57,31 @@ public class DonationController {
         response.put("timeline", List.of(Map.of("status", donation.getStatus().name().toLowerCase(Locale.ROOT),
                 "created_at", donation.getCreatedAt(), "note", "Donation request created")));
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/donations/{id}")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable Long id,
+                                                       @AuthenticationPrincipal User user,
+                                                       @RequestBody Map<String, Object> body) {
+        Request donation = donation(id);
+        if (!donation.getSender().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+        String title = stringValue(body, "title", "food", "activityTitle");
+        donation.setActivityTitle(title);
+        String message = stringValue(body, "message", "description");
+        donation.setMessage(message);
+        return ResponseEntity.ok(toDonation(requests.save(donation)));
+    }
+
+    @DeleteMapping("/donations/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        Request donation = donation(id);
+        if (!donation.getSender().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).build();
+        }
+        requests.delete(donation);
+        return ResponseEntity.noContent().build();
     }
 
     private Request donation(Long id) {

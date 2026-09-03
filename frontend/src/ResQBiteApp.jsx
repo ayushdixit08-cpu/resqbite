@@ -4,7 +4,7 @@ import {
   CheckCircle2, AlertCircle, Star, TrendingUp, Package, Truck, Bell,
   Search, Filter, Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight,
   Sparkles, Navigation, Phone, Award, BarChart3, Heart, ShieldCheck,
-  Loader2, ArrowLeft, Utensils, Soup, Cake, Croissant, Apple, Coffee,
+  Loader2, ArrowLeft, Utensils, Soup, Apple,
   Box, CircleCheck, XCircle, ScanLine, Timer, Gauge, ThumbsUp,
   LayoutGrid, PlusCircle, ChevronDown, Calendar, FileCheck2, Image as ImageIcon, Home, LogOut,
   Monitor, Rocket, Globe, CreditCard, Landmark, Smartphone, Wallet, Info,
