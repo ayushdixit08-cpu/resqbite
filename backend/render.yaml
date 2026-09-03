@@ -2,7 +2,9 @@
   - type: web
     name: resqbite-backend
     env: docker
-    plan: free
+    # Use at least a paid instance and a managed PostgreSQL tier for
+    # production traffic. The free tier is suitable only for demos.
+    plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:

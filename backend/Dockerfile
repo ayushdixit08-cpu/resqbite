@@ -12,4 +12,4 @@ COPY --from=build /src/target/*.jar app.jar
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "java -jar /app/app.jar --server.port=${PORT:-8080}"]
+CMD ["sh", "-c", "JAVA_OPTS=\"${JAVA_OPTS:--XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25}\"; exec java $JAVA_OPTS -jar /app/app.jar --server.port=${PORT:-8080}"]

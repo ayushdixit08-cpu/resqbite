@@ -24,11 +24,10 @@ public class VolunteerController {
     @GetMapping("/pickups/available")
     public List<Map<String, Object>> available(@AuthenticationPrincipal User user) {
         requireVolunteer(user);
-        return requests.findByTypeAndStatusInOrderByCreatedAtDesc(
+        return requests.findByTypeAndStatusInAndVolunteerIsNullOrderByCreatedAtDesc(
                         Request.RequestType.FOOD_DONATION,
                         List.of(Request.RequestStatus.AVAILABLE, Request.RequestStatus.PENDING,
                                 Request.RequestStatus.ACCEPTED)).stream()
-                .filter(request -> request.getVolunteer() == null)
                 .map(this::toTask)
                 .toList();
     }
