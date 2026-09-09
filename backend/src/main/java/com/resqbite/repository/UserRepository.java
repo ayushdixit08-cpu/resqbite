@@ -10,6 +10,7 @@ import java.util.List;
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
+    Optional<User> findByGoogleId(String googleId);
     long countByRole(User.UserType role);
     List<User> findByRole(User.UserType role);
     List<User> findTop5ByRoleOrderByIdAsc(User.UserType role);

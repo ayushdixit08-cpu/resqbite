@@ -5,9 +5,12 @@ import jakarta.persistence.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.util.Collection;
 import java.util.List;
+import java.time.Instant;
 
 @Entity
 @Table(name = "users")
@@ -23,8 +26,14 @@ public class User implements UserDetails {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String password;
+
+    @Column(name = "google_id", unique = true, length = 255)
+    private String googleId;
+
+    @Column(nullable = false, length = 32)
+    private String provider = "LOCAL";
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -42,6 +51,14 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
     protected User() {}
 
     public User(String name, String email, String password, UserType role, String location, String bio, String skills, String interests) {
@@ -55,11 +72,22 @@ public class User implements UserDetails {
         this.interests = interests;
     }
 
+    public User(String name, String email, String password, UserType role, String location, String bio,
+                String skills, String interests, String provider, String googleId) {
+        this(name, email, password, role, location, bio, skills, interests);
+        this.provider = provider == null ? "LOCAL" : provider;
+        this.googleId = googleId;
+    }
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public String getGoogleId() { return googleId; }
+    public void setGoogleId(String googleId) { this.googleId = googleId; }
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
     @JsonIgnore
     @Override
     public String getPassword() { return password; }

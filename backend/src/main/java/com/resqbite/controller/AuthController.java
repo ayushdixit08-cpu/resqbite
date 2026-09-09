@@ -4,6 +4,7 @@ import com.resqbite.dto.AuthResponse;
 import com.resqbite.dto.LoginRequest;
 import com.resqbite.dto.RegisterRequest;
 import com.resqbite.dto.UserDto;
+import com.resqbite.dto.RefreshTokenRequest;
 import com.resqbite.entity.User;
 import com.resqbite.service.AuthService;
 import org.springframework.http.ResponseEntity;
@@ -42,8 +43,8 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(@RequestBody java.util.Map<String,String> body) {
-        return ResponseEntity.ok(authService.refresh(body.get("refreshToken")));
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(authService.refresh(request.refreshToken()));
     }
 
     @PostMapping("/forgot-password")

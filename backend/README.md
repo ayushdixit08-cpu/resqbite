@@ -12,7 +12,10 @@ set SPRING_PROFILES_ACTIVE=test
 mvn spring-boot:run
 ```
 
-The app listens on `http://localhost:5000`.
+The app listens on `http://localhost:5000`. Local defaults use MySQL
+(`jdbc:mysql://localhost:3306/resqbite`); override the URL, username, and
+password with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
+`SPRING_DATASOURCE_PASSWORD`.
 
 The production service is `resqbite-2`:
 `https://resqbite-2.onrender.com`.
@@ -35,6 +38,10 @@ The current frontend design is left unchanged; it continues to call the normal A
 
 - `/api/auth/register`
 - `/api/auth/login`
+- `/api/auth/refresh` (accepts a refresh token returned when `rememberMe` is true)
+- `/api/auth/google` (Google ID token; configure `GOOGLE_CLIENT_ID`)
+- `/api/auth/forgot-password` and `/api/auth/reset-password`
+- `/api/users/me`
 - `/api/organizations`
 - `/api/volunteers`
 - `/api/requests`

@@ -18,13 +18,20 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.expiration-ms:86400000}")
+    @Value("${jwt.expiration-ms:900000}")
     private long expirationMs;
     @Value("${jwt.refresh-expiration-ms:2592000000}")
     private long refreshExpirationMs;
 
     public String generateToken(String subject, Map<String, Object> extraClaims) {
-        return generate(subject, extraClaims, expirationMs);
+        return generateToken(subject, extraClaims, false);
+    }
+
+    public String generateToken(String subject, Map<String, Object> extraClaims, boolean rememberMe) {
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        claims.put("type", "access");
+        claims.put("rememberMe", rememberMe);
+        return generate(subject, claims, expirationMs);
     }
     public String generateRefreshToken(String subject) {
         return generate(subject, Map.of("type", "refresh"), refreshExpirationMs);
@@ -42,6 +49,14 @@ public class JwtService {
     public boolean isRefreshToken(String token) {
         try { return isTokenValid(token) && "refresh".equals(extractAllClaims(token).get("type", String.class)); }
         catch (Exception ex) { return false; }
+    }
+
+    public boolean isAccessToken(String token) {
+        try {
+            return isTokenValid(token) && "access".equals(extractAllClaims(token).get("type", String.class));
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     public String extractUsername(String token) {

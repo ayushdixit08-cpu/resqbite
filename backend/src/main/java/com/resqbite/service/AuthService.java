@@ -101,7 +101,7 @@ public class AuthService {
                 "role", user.getRole().name()
         ));
 
-        return new AuthResponse(token, UserDto.from(user), jwtService.generateRefreshToken(user.getEmail()));
+        return new AuthResponse(token, UserDto.from(user), null);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -119,7 +119,7 @@ public class AuthService {
         String token = jwtService.generateToken(user.getEmail(), Map.of(
                 "userId", user.getId(),
                 "role", user.getRole().name()
-        ));
+        ), request.rememberMe());
 
         return new AuthResponse(token, UserDto.from(user), request.rememberMe() ? jwtService.generateRefreshToken(user.getEmail()) : null);
     }
@@ -134,21 +134,45 @@ public class AuthService {
     public AuthResponse googleLogin(com.resqbite.dto.GoogleLoginRequest request) {
         try {
             if (googleClientId == null || googleClientId.isBlank()) throw new IllegalArgumentException("Google login is not configured");
+            if (request.idToken() == null || request.idToken().isBlank()) throw new IllegalArgumentException("Invalid Google identity");
             GoogleIdToken token = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                     .setAudience(java.util.List.of(googleClientId)).build().verify(request.idToken());
-            if (token == null || token.getPayload().getEmail() == null || !Boolean.TRUE.equals(token.getPayload().getEmailVerified()))
+            if (token == null || token.getPayload().getEmail() == null
+                    || !Boolean.TRUE.equals(token.getPayload().getEmailVerified())
+                    || token.getPayload().getSubject() == null
+                    || !("accounts.google.com".equals(token.getPayload().getIssuer())
+                        || "https://accounts.google.com".equals(token.getPayload().getIssuer())))
                 throw new IllegalArgumentException("Invalid Google identity");
             String email = token.getPayload().getEmail().toLowerCase(Locale.ROOT);
-            User user = userRepository.findByEmail(email).orElseGet(() -> userRepository.save(new User(
-                    token.getPayload().get("name") == null ? email : token.getPayload().get("name").toString(), email,
-                    passwordEncoder.encode(java.util.UUID.randomUUID().toString()), User.UserType.DONOR, null, null, null, null)));
-            return new AuthResponse(jwtService.generateToken(email, Map.of("userId", user.getId(), "role", user.getRole().name())), UserDto.from(user), jwtService.generateRefreshToken(email));
+            String googleId = token.getPayload().getSubject();
+            User user = userRepository.findByGoogleId(googleId).orElseGet(() -> {
+                User existing = userRepository.findByEmail(email).orElse(null);
+                if (existing != null) {
+                    if (existing.getGoogleId() != null && !googleId.equals(existing.getGoogleId())) {
+                        throw new IllegalArgumentException("Google account is linked to another identity");
+                    }
+                    existing.setGoogleId(googleId);
+                    existing.setProvider("GOOGLE");
+                    return userRepository.save(existing);
+                }
+                return userRepository.save(new User(
+                        token.getPayload().get("name") == null ? email : token.getPayload().get("name").toString(), email,
+                        passwordEncoder.encode(java.util.UUID.randomUUID().toString()), User.UserType.DONOR,
+                        null, null, null, null, "GOOGLE", googleId));
+            });
+            return new AuthResponse(jwtService.generateToken(email,
+                    Map.of("userId", user.getId(), "role", user.getRole().name()), request.rememberMe()),
+                    UserDto.from(user), request.rememberMe() ? jwtService.generateRefreshToken(email) : null);
+        } catch (IllegalArgumentException ex) {
+            throw ex;
         } catch (Exception ex) { throw new IllegalArgumentException("Google authentication failed"); }
     }
 
     @Transactional
     public void forgotPassword(String email) {
+        if (email == null || email.isBlank()) return;
         userRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT)).ifPresent(user -> {
+            passwordTokens.deleteByUser(user);
             byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
             String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
             passwordTokens.save(new com.resqbite.entity.PasswordToken(user, hash(raw), Instant.now().plusSeconds(900)));

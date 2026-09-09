@@ -2802,6 +2802,37 @@ function Login({ go, toast, onSignIn }) {
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loggingIn, setLoggingIn] = useState(false);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  const handleGoogleLogin = () => {
+    if (!googleClientId || !window.google?.accounts?.id) {
+      toast("Google sign-in is not configured", "error");
+      return;
+    }
+
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: async ({ credential }) => {
+        if (!credential || loggingIn) return;
+        setLoggingIn(true);
+        try {
+          const data = await authService.googleLogin(credential, remember);
+          if (!data?.token || !data?.user) throw new Error("Google sign-in failed");
+          const storage = remember ? localStorage : sessionStorage;
+          storage.setItem("resqbite_token", data.token);
+          const signedInUser = normalizeApiUser(data.user);
+          onSignIn?.(signedInUser);
+          toast("Logged in with Google");
+          go(dashboardForRole(signedInUser));
+        } catch (error) {
+          toast(error.message || "Google sign-in failed", "error");
+        } finally {
+          setLoggingIn(false);
+        }
+      },
+    });
+    window.google.accounts.id.prompt();
+  };
 
   // Looks up the account this email actually signed up with (saved by
   // Signup) so login routes to that account's real role — falling back
@@ -2820,6 +2851,7 @@ function Login({ go, toast, onSignIn }) {
       const data = await authService.login({
         email: email.trim(),
         password: pwd,
+        rememberMe: remember,
       });
 
       if (!data?.token || !data?.user) {
@@ -2858,7 +2890,16 @@ function Login({ go, toast, onSignIn }) {
         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: T.inkSoft, cursor: "pointer" }}>
           <input type="checkbox" checked={remember} onChange={() => setRemember((r) => !r)} /> Remember me
         </label>
-        <span style={{ fontSize: 12.5, color: T.primary, fontWeight: 700, cursor: "pointer" }} onClick={() => toast("Password reset link sent (demo)")}>Forgot password?</span>
+        <span style={{ fontSize: 12.5, color: T.primary, fontWeight: 700, cursor: "pointer" }} onClick={async () => {
+          const address = window.prompt("Enter your account email");
+          if (!address?.trim()) return;
+          try {
+            await authService.forgotPassword(address.trim());
+            toast("If the account exists, a reset link has been sent.");
+          } catch (error) {
+            toast(error.message || "Unable to request a password reset", "error");
+          }
+        }}>Forgot password?</span>
       </div>
 
       <PrimaryButton full disabled={loggingIn} onClick={handleLogin} icon={loggingIn ? Loader2 : ArrowRight}>{loggingIn ? "Logging in…" : "Log in"}</PrimaryButton>
@@ -2866,7 +2907,7 @@ function Login({ go, toast, onSignIn }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0" }}>
         <div style={{ flex: 1, height: 1, background: T.sand }} /> <span style={{ fontSize: 11.5, color: T.inkSoft }}>OR</span> <div style={{ flex: 1, height: 1, background: T.sand }} />
       </div>
-      <GoogleButton onClick={() => { onSignIn?.({ ...DEFAULT_USER, ...GOOGLE_ACCOUNT }); toast("Logged in with Google"); go("dashboard"); }} />
+      <GoogleButton onClick={handleGoogleLogin} />
     </AuthShell>
   );
 }
