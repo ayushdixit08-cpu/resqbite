@@ -6,6 +6,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.util.Map;
 
@@ -20,6 +21,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleBadJson(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(Map.of("error", "Invalid JSON payload"));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream().findFirst()
+                .map(e -> e.getField() + ": " + e.getDefaultMessage()).orElse("Invalid request");
+        return ResponseEntity.badRequest().body(Map.of("error", message));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

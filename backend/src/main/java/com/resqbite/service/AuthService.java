@@ -18,6 +18,17 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.Locale;
+import java.time.Instant;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import jakarta.transaction.Transactional;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class AuthService {
@@ -28,19 +39,22 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final com.resqbite.repository.PasswordTokenRepository passwordTokens;
+    @Value("${google.client-id:}") private String googleClientId;
 
     public AuthService(UserRepository userRepository,
                        VolunteerRepository volunteerRepository,
                        NgoRepository ngoRepository,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
-                       JwtService jwtService) {
+                       JwtService jwtService, com.resqbite.repository.PasswordTokenRepository passwordTokens) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.ngoRepository = ngoRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.passwordTokens = passwordTokens;
     }
 
     public AuthResponse register(RegisterRequest request) {
@@ -87,7 +101,7 @@ public class AuthService {
                 "role", user.getRole().name()
         ));
 
-        return new AuthResponse(token, UserDto.from(user));
+        return new AuthResponse(token, UserDto.from(user), jwtService.generateRefreshToken(user.getEmail()));
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -107,6 +121,48 @@ public class AuthService {
                 "role", user.getRole().name()
         ));
 
-        return new AuthResponse(token, UserDto.from(user));
+        return new AuthResponse(token, UserDto.from(user), request.rememberMe() ? jwtService.generateRefreshToken(user.getEmail()) : null);
+    }
+
+    public AuthResponse refresh(String refreshToken) {
+        if (refreshToken == null || !jwtService.isRefreshToken(refreshToken)) throw new IllegalArgumentException("Invalid refresh token");
+        User user = userRepository.findByEmail(jwtService.extractUsername(refreshToken)).orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+        return new AuthResponse(jwtService.generateToken(user.getEmail(), Map.of("userId", user.getId(), "role", user.getRole().name())), UserDto.from(user), jwtService.generateRefreshToken(user.getEmail()));
+    }
+
+    @Transactional
+    public AuthResponse googleLogin(com.resqbite.dto.GoogleLoginRequest request) {
+        try {
+            if (googleClientId == null || googleClientId.isBlank()) throw new IllegalArgumentException("Google login is not configured");
+            GoogleIdToken token = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
+                    .setAudience(java.util.List.of(googleClientId)).build().verify(request.idToken());
+            if (token == null || token.getPayload().getEmail() == null || !Boolean.TRUE.equals(token.getPayload().getEmailVerified()))
+                throw new IllegalArgumentException("Invalid Google identity");
+            String email = token.getPayload().getEmail().toLowerCase(Locale.ROOT);
+            User user = userRepository.findByEmail(email).orElseGet(() -> userRepository.save(new User(
+                    token.getPayload().get("name") == null ? email : token.getPayload().get("name").toString(), email,
+                    passwordEncoder.encode(java.util.UUID.randomUUID().toString()), User.UserType.DONOR, null, null, null, null)));
+            return new AuthResponse(jwtService.generateToken(email, Map.of("userId", user.getId(), "role", user.getRole().name())), UserDto.from(user), jwtService.generateRefreshToken(email));
+        } catch (Exception ex) { throw new IllegalArgumentException("Google authentication failed"); }
+    }
+
+    @Transactional
+    public void forgotPassword(String email) {
+        userRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT)).ifPresent(user -> {
+            byte[] bytes = new byte[32]; new SecureRandom().nextBytes(bytes);
+            String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            passwordTokens.save(new com.resqbite.entity.PasswordToken(user, hash(raw), Instant.now().plusSeconds(900)));
+            // Integrate an email provider here; never return the raw token from the API.
+        });
+    }
+    @Transactional
+    public void resetPassword(String rawToken, String password) {
+        var token = passwordTokens.findByTokenHash(hash(rawToken)).filter(t -> !t.isUsed() && t.getExpiresAt().isAfter(Instant.now()))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token"));
+        token.getUser().setPassword(passwordEncoder.encode(password)); token.setUsed(true); passwordTokens.save(token);
+    }
+    private String hash(String value) {
+        try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
+        catch (Exception e) { throw new IllegalStateException(e); }
     }
 }

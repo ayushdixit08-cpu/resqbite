@@ -20,16 +20,28 @@ public class JwtService {
 
     @Value("${jwt.expiration-ms:86400000}")
     private long expirationMs;
+    @Value("${jwt.refresh-expiration-ms:2592000000}")
+    private long refreshExpirationMs;
 
     public String generateToken(String subject, Map<String, Object> extraClaims) {
+        return generate(subject, extraClaims, expirationMs);
+    }
+    public String generateRefreshToken(String subject) {
+        return generate(subject, Map.of("type", "refresh"), refreshExpirationMs);
+    }
+    private String generate(String subject, Map<String, Object> extraClaims, long lifetime) {
         Map<String, Object> claims = new HashMap<>(extraClaims);
         return Jwts.builder()
                 .claims(claims)
                 .subject(subject)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
+                .expiration(new Date(System.currentTimeMillis() + lifetime))
                 .signWith(getSigningKey())
                 .compact();
+    }
+    public boolean isRefreshToken(String token) {
+        try { return isTokenValid(token) && "refresh".equals(extractAllClaims(token).get("type", String.class)); }
+        catch (Exception ex) { return false; }
     }
 
     public String extractUsername(String token) {
