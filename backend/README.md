@@ -12,8 +12,8 @@ set SPRING_PROFILES_ACTIVE=test
 mvn spring-boot:run
 ```
 
-The app listens on `http://localhost:5000`. Local defaults use MySQL
-(`jdbc:mysql://localhost:3306/resqbite`); override the URL, username, and
+The app listens on `http://localhost:5000`. Local defaults use PostgreSQL
+(`jdbc:postgresql://localhost:5432/resqbite`); override the URL, username, and
 password with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
 `SPRING_DATASOURCE_PASSWORD`.
 
