@@ -567,24 +567,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/analytics/overview:
-    get:
-      operationId: analytics_overview_retrieve
-      tags:
-      - analytics
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
   /api/analytics/overview/:
     get:
-      operationId: analytics_overview_retrieve_2
+      operationId: analytics_overview_retrieve
       tags:
       - analytics
       security:
@@ -1271,7 +1256,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/donations:
+  /api/donations/:
     get:
       operationId: donations_list
       parameters:
@@ -1318,226 +1303,6 @@ paths:
       - jwtAuth: []
       responses:
         '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donations/:
-    get:
-      operationId: donations_list_2
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - donations
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedDonationList'
-          description: ''
-    post:
-      operationId: donations_create_2
-      tags:
-      - donations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Donation'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donations{id}/:
-    get:
-      operationId: donations_retrieve_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-    put:
-      operationId: donations_update_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Donation'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-    patch:
-      operationId: donations_partial_update_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedDonation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedDonation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedDonation'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-    delete:
-      operationId: donations_destroy_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      security:
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/donations{id}/cancel/:
-    post:
-      operationId: donations_cancel_create_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Donation'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Donation'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donations{id}/recommendations/:
-    get:
-      operationId: donations_recommendations_retrieve_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donations{id}/status/:
-    get:
-      operationId: donations_status_retrieve_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - donations
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
           content:
             application/json:
               schema:
@@ -1965,260 +1730,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Donation'
           description: ''
-  /api/donationshistory/:
-    get:
-      operationId: donationshistory_retrieve
-      tags:
-      - donationshistory
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donationsmy/:
-    get:
-      operationId: donationsmy_retrieve
-      tags:
-      - donationsmy
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donationsnearby/:
-    get:
-      operationId: donationsnearby_retrieve
-      tags:
-      - donationsnearby
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
-  /api/donationsqr/{donation_id}/generate/:
-    post:
-      operationId: donationsqr_generate_create
-      parameters:
-      - in: path
-        name: donation_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - donationsqr
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
-  /api/donationsqr/verify/:
-    post:
-      operationId: donationsqr_verify_create
-      tags:
-      - donationsqr
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
-  /api/donationsrequests/:
-    get:
-      operationId: donationsrequests_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - donationsrequests
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedDonationRequestList'
-          description: ''
-    post:
-      operationId: donationsrequests_create
-      tags:
-      - donationsrequests
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DonationRequest'
-          description: ''
-  /api/donationsrequests/{id}/:
-    get:
-      operationId: donationsrequests_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - donationsrequests
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DonationRequest'
-          description: ''
-  /api/donationsrequests/{id}/accept/:
-    post:
-      operationId: donationsrequests_accept_create
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - donationsrequests
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DonationRequest'
-          description: ''
-  /api/donationsrequests/{id}/reject/:
-    post:
-      operationId: donationsrequests_reject_create
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - donationsrequests
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/DonationRequest'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DonationRequest'
-          description: ''
-  /api/donationssearch/:
-    get:
-      operationId: donationssearch_retrieve
-      tags:
-      - donationssearch
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Donation'
-          description: ''
   /api/emergency-requests/:
     get:
       operationId: emergency_requests_retrieve
@@ -2628,7 +2139,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/organizations:
+  /api/organizations/:
     get:
       operationId: organizations_list
       parameters:
@@ -2655,91 +2166,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedOrganizationList'
-          description: ''
-  /api/organizations/:
-    get:
-      operationId: organizations_list_2
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - organizations
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedOrganizationList'
-          description: ''
-  /api/organizations{id}/:
-    get:
-      operationId: organizations_retrieve_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this organization.
-        required: true
-      tags:
-      - organizations
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-  /api/organizations{id}/verify/:
-    post:
-      operationId: organizations_verify_create_2
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this organization.
-        required: true
-      tags:
-      - organizations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Organization'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Organization'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Organization'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
           description: ''
   /api/organizations/{id}/:
     get:
@@ -2856,84 +2282,6 @@ paths:
       operationId: organizations_profile_partial_update
       tags:
       - organizations
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedOrganization'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedOrganization'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedOrganization'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-  /api/organizationsnearby/:
-    get:
-      operationId: organizationsnearby_retrieve
-      tags:
-      - organizationsnearby
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-  /api/organizationsprofile/:
-    get:
-      operationId: organizationsprofile_retrieve
-      tags:
-      - organizationsprofile
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-    post:
-      operationId: organizationsprofile_create
-      tags:
-      - organizationsprofile
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Organization'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Organization'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Organization'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: ''
-    patch:
-      operationId: organizationsprofile_partial_update
-      tags:
-      - organizationsprofile
       requestBody:
         content:
           application/json:
@@ -3235,7 +2583,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/rewards/leaderboard/:
     get:
       operationId: rewards_leaderboard_retrieve
@@ -3245,7 +2597,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/rewards/me/:
     get:
       operationId: rewards_me_retrieve
@@ -3255,7 +2611,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/tracking/{event_id}/:
     get:
       operationId: tracking_retrieve

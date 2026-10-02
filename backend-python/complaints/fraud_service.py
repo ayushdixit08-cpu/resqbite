@@ -29,3 +29,21 @@ def inspect_donation(donation):
         FraudAlert.objects.create(user=donation.donor, rule=rule, details=details)
         for rule, details in alerts
     ]
+
+
+def inspect_registration(user):
+    if not user.phone:
+        return []
+    recent_same_phone = user.__class__.objects.filter(
+        phone=user.phone,
+        created_at__gte=timezone.now() - timedelta(days=30),
+    ).exclude(pk=user.pk).count()
+    if recent_same_phone < 2:
+        return []
+    return [
+        FraudAlert.objects.create(
+            user=user,
+            rule="REPEATED_ACCOUNT_PHONE",
+            details={"matching_accounts_in_30_days": recent_same_phone},
+        )
+    ]

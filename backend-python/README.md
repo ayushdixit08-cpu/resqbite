@@ -1,32 +1,84 @@
-# ResQBite Python Backend
+# ResQBite Django REST API
 
-This folder contains a Django + DRF backend for the ResQBite food-rescue product.
+ResQBite's Python backend is built with Django, Django REST Framework, PostgreSQL, and SimpleJWT. Django apps keep accounts, organizations, donations, pickups, volunteers, tracking, notifications, reviews, rewards, complaints, emergency requests, events, and analytics separate.
 
-## Stack
-- Django
-- Django REST Framework
-- JWT authentication via `djangorestframework-simplejwt`
-- PostgreSQL-ready config with SQLite fallback for local development
-- Swagger docs via `drf-spectacular`
+## Requirements and local setup
 
-## Quick start
+- Python 3.10+
+- PostgreSQL 14+ for normal use
+- A Cloudinary account for production image/document storage
 
-1. Create and activate a virtual environment
-2. Install dependencies
-   `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and edit values
-4. Run migrations
-   `python manage.py migrate`
-5. Start the API
-   `python manage.py runserver 0.0.0.0:5000`
+```powershell
+cd backend-python
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+```
 
-## Main endpoints
-- `/api/health/`
-- `/api/auth/register/`
-- `/api/auth/login/`
-- `/api/auth/me/`
-- `/api/organizations/`
-- `/api/donations/`
-- `/api/pickups/`
-- `/api/analytics/overview/`
-- `/api/docs/`
+Edit `.env` before starting. For PostgreSQL, create the configured database and role, then use `DB_ENGINE=postgresql`. SQLite is available only for local development when `DEBUG=True`; set `DB_ENGINE=sqlite3` to use it. Production refuses to start without a real `SECRET_KEY` and `CLOUDINARY_URL`.
+
+```powershell
+python manage.py check
+python manage.py makemigrations
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 0.0.0.0:5000
+```
+
+Do not commit `.env` or production secrets. Use a real SMTP provider in production; the example configuration prints verification and password-reset emails to the console.
+
+## API conventions
+
+- Base URL: `http://localhost:5000/api`
+- Authentication: `Authorization: Bearer <access-token>`
+- Registration/login return `success`, `message`, and `data` containing `access`, `refresh`, and `user`. The legacy `token` field is an alias for the access token.
+- Paginated list responses contain `data.count`, `data.next`, `data.previous`, and `data.results`. Set `page` and `page_size` (maximum 100).
+- Validation/authentication errors use `success: false`, a message, and field errors.
+- Donation image uploads use `multipart/form-data`, repeat the `images` field for each image, and include JSON-compatible `food_safety` fields. JPEG, PNG, and WebP are accepted up to `MAX_UPLOAD_SIZE`.
+
+## Main routes
+
+| Area | Routes |
+| --- | --- |
+| Authentication | `POST /auth/register/`, `/auth/login/`, `/auth/logout/`, `/auth/token/refresh/`; `GET /auth/me/`; `GET/PATCH /auth/profile/`; `/auth/password-reset/`; `/auth/email-verification/` |
+| NGOs | `GET /ngos/`, `/ngos/{id}/`, `/ngos/nearby/`; `POST/PATCH /ngos/profile/`; admin `POST /ngos/{id}/verify/` |
+| Donations | `GET/POST /donations/`, `GET/PATCH/DELETE /donations/{id}/`, `/donations/my/`, `/donations/history/`, `/donations/search/`, `/donations/nearby/`, `/donations/{id}/cancel/`, `/donations/{id}/status/` |
+| NGO requests | `POST/GET /donations/requests/`, `GET /donations/requests/{id}/`, `POST /donations/requests/{id}/accept/` or `/reject/` |
+| Volunteers and delivery | `/volunteers/profile/`, `/volunteers/nearby/`, `/volunteers/tasks/`, `/volunteers/tasks/{id}/accept/`, `/volunteers/tasks/{id}/status/`, `/volunteers/tasks/history/`; `/pickups/` |
+| Tracking and QR | `GET /tracking/donation/{id}/`, `GET /tracking/{event_id}/`, `POST /tracking/location/`; `POST /donations/qr/{id}/generate/`, `/donations/qr/verify/` |
+| Notifications and reviews | `/notifications/`, `/notifications/{id}/read/`, `/notifications/read-all/`; `/reviews/`, `/reviews/user/{id}/`, `/reviews/donation/{id}/` |
+| Additional modules | `/emergency-requests/`, `/events/`, `/rewards/me/`, `/rewards/leaderboard/`, `/rewards/badges/`, `/complaints/` |
+| Analytics and admin | `/analytics/overview/`, `/analytics/weekly/`, `/analytics/food-mix/`, `/analytics/impact/`; `/admin/dashboard/`, `/admin/users/`, `/admin/ngos/`, `/admin/donations/`, `/admin/deliveries/`, `/admin/reports/` |
+| Documentation | `GET /api/health/`, `/api/schema/`, `/api/docs/` |
+
+## Important behavior
+
+- Public registration cannot create an administrator. Administrators must be provisioned through Django's management/admin tooling.
+- Organization profiles start unverified. Only an admin can verify them; only verified organizations can request donations.
+- Available-donation endpoints exclude expired donations. Donation requests are unique per organization and donation; acceptance locks the donation row and a conditional database constraint prevents multiple accepted NGOs.
+- Volunteer status transitions are enforced. Pickup and delivery completion require the assigned volunteer to use the single-use, expiring QR token.
+- Donation status history is append-only in tracking events. Only the latest volunteer location is retained.
+- Reviews are only allowed after delivery completion and are unique per donation/reviewer/recipient.
+- Reward points are recorded as ledger entries only after verified completion. Clients cannot set points.
+- AI endpoints return HTTP 503 until a real provider is configured; no synthetic quality or recommendation results are returned.
+- Impact figures are explicitly estimates and use environment-configurable factors.
+
+## Security and production
+
+Configure a strong unique `SECRET_KEY`, separate `JWT_SECRET_KEY`, HTTPS, `ALLOWED_HOSTS`, explicit `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, SMTP, PostgreSQL, and Cloudinary in the deployment environment. The API uses Django password validation and BCrypt-SHA256 hashing, ORM parameterization, JWT blacklisting, role checks, object-level ownership checks, throttling, and validated image uploads.
+
+## Migrations, tests, and OpenAPI
+
+```powershell
+python manage.py makemigrations
+python manage.py migrate
+python manage.py test
+python manage.py spectacular --validate --file openapi.yaml
+```
+
+Swagger UI is available at `/api/docs/`; the OpenAPI document is served from `/api/schema/`. `postman/ResQBite.postman_collection.json` covers the main authentication, donation, NGO, volunteer, pickup, tracking/QR, notification, review, emergency, complaint, reward, event, analytics, and admin flows. The live PostgreSQL deployment must be configured separately; local SQLite tests do not prove remote database connectivity.
+
+## React/Vite integration
+
+Set `VITE_API_BASE_URL=http://localhost:5000/api`. Store the access token returned by login and send it in the `Authorization` header. Use JSON for ordinary requests and `FormData` for image uploads. The React API client unwraps successful `{success, message, data}` envelopes while preserving server error messages.

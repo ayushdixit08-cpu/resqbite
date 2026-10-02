@@ -2,6 +2,8 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from common.services import validate_image
+
 from .models import User
 
 
@@ -66,6 +68,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    profile_image = serializers.ImageField(required=False, allow_null=True)
     class Meta:
         model = User
         fields = ("id", "email", "name", "phone", "role", "profile_image", "address", "latitude", "longitude", "is_verified", "created_at", "updated_at")
@@ -80,3 +83,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         if value is not None and not -180 <= value <= 180:
             raise serializers.ValidationError("Longitude must be between -180 and 180.")
         return value
+
+    def validate_profile_image(self, image):
+        if image is not None:
+            validate_image(image)
+        return image

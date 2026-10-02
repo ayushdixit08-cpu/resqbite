@@ -57,7 +57,10 @@ class NearbyVolunteersView(APIView):
             distance = haversine_km(latitude, longitude, profile.user.latitude, profile.user.longitude)
             if distance <= min(radius, profile.service_radius_km):
                 results.append({
-                    **VolunteerProfileSerializer(profile).data,
+                    "volunteer_id": str(profile.user_id),
+                    "name": profile.user.name,
+                    "profile_image": profile.user.profile_image.url if profile.user.profile_image else None,
+                    "service_radius_km": profile.service_radius_km,
                     "distance_km": round(distance, 2),
                 })
         results.sort(key=lambda item: item["distance_km"])

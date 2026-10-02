@@ -18,6 +18,12 @@ class Donation(models.Model):
         ("FRUITS", "Fruits"),
         ("PACKED_FOOD", "Packed Food"),
     ]
+    QUANTITY_UNIT_CHOICES = [
+        ("kg", "Kilograms"),
+        ("g", "Grams"),
+        ("lb", "Pounds"),
+        ("servings", "Servings"),
+    ]
     STATUS_PENDING = "PENDING"
     STATUS_ACCEPTED = "ACCEPTED"
     STATUS_COMPLETED = "COMPLETED"
@@ -36,7 +42,7 @@ class Donation(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     food_type = models.CharField(max_length=100)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    quantity_unit = models.CharField(max_length=30, default="servings")
+    quantity_unit = models.CharField(max_length=30, choices=QUANTITY_UNIT_CHOICES, default="servings")
     people_served = models.PositiveIntegerField(default=1)
     prepared_at = models.DateTimeField()
     expires_at = models.DateTimeField(db_index=True)

@@ -1,0 +1,359 @@
+{
+  "info": {
+    "_postman_id": "9b7539e1-b255-4a65-8aa0-8e7e50f76d9b",
+    "name": "ResQBite Django API",
+    "description": "Authentication, donation rescue, delivery, tracking, notification, review, admin, and analytics smoke requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "donationId", "value": "" },
+    { "key": "requestId", "value": "" },
+    { "key": "taskId", "value": "" },
+    { "key": "qrToken", "value": "" },
+    { "key": "emergencyRequestId", "value": "" },
+    { "key": "eventId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register donor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Example Donor\",\n  \"email\": \"donor@example.test\",\n  \"phone\": \"\",\n  \"role\": \"DONOR\",\n  \"password\": \"ReplaceThisPassword123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register/"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"donor@example.test\",\n  \"password\": \"ReplaceThisPassword123!\"\n}" },
+            "url": "{{baseUrl}}/auth/login/"
+          }
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/auth/me/"
+          }
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refreshToken}}\"\n}" },
+            "url": "{{baseUrl}}/auth/token/refresh/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Donations and NGOs",
+      "item": [
+        {
+          "name": "List donations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/?page=1&page_size=20"
+          }
+        },
+        {
+          "name": "Search available food",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/search/?category=VEG&radius=25"
+          }
+        },
+        {
+          "name": "Nearby NGOs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/ngos/nearby/?latitude=28.6139&longitude=77.2090&radius=25"
+          }
+        },
+        {
+          "name": "My donations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/my/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Volunteer, tracking, and QR",
+      "item": [
+        {
+          "name": "Volunteer task list",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/volunteers/tasks/"
+          }
+        },
+        {
+          "name": "Donation tracking",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/tracking/donation/{{donationId}}/"
+          }
+        },
+        {
+          "name": "Generate QR token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/qr/{{donationId}}/generate/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications, reviews, and analytics",
+      "item": [
+        {
+          "name": "Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/notifications/"
+          }
+        },
+        {
+          "name": "Submit review",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"donation\": \"{{donationId}}\",\n  \"reviewed_user\": \"replace-with-participant-uuid\",\n  \"rating\": 5,\n  \"feedback\": \"Thank you.\"\n}" },
+            "url": "{{baseUrl}}/reviews/"
+          }
+        },
+        {
+          "name": "Role dashboard analytics",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/analytics/overview/"
+          }
+        },
+        {
+          "name": "Environmental impact estimate",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/analytics/impact/"
+          }
+        },
+        {
+          "name": "Admin dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/admin/dashboard/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Workflow coverage",
+      "item": [
+        {
+          "name": "Create donation",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"food_name\": \"Surplus meal\",\n  \"category\": \"VEG\",\n  \"food_type\": \"Prepared meal\",\n  \"quantity\": 20,\n  \"quantity_unit\": \"servings\",\n  \"people_served\": 20,\n  \"prepared_at\": \"REPLACE_WITH_PAST_ISO_DATETIME\",\n  \"expires_at\": \"REPLACE_WITH_FUTURE_ISO_DATETIME\",\n  \"pickup_address\": \"Pickup address\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090,\n  \"food_safety\": {\n    \"freshly_prepared\": true,\n    \"properly_packed\": true,\n    \"expiry_marked\": true,\n    \"food_type_marked\": true,\n    \"allergens\": \"\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/donations/"
+          }
+        },
+        {
+          "name": "Create NGO donation request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"donation\": \"{{donationId}}\",\n  \"message\": \"We can collect this donation.\"\n}" },
+            "url": "{{baseUrl}}/donations/requests/"
+          }
+        },
+        {
+          "name": "Accept NGO request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/requests/{{requestId}}/accept/"
+          }
+        },
+        {
+          "name": "Reject NGO request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/donations/requests/{{requestId}}/reject/"
+          }
+        },
+        {
+          "name": "NGO profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/ngos/profile/"
+          }
+        },
+        {
+          "name": "Accept volunteer task",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/volunteers/tasks/{{taskId}}/accept/"
+          }
+        },
+        {
+          "name": "Update volunteer task status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"PICKUP_STARTED\"\n}" },
+            "url": "{{baseUrl}}/volunteers/tasks/{{taskId}}/status/"
+          }
+        },
+        {
+          "name": "Pickup task list",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/pickups/"
+          }
+        },
+        {
+          "name": "Verify QR stage",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"donation_id\": \"{{donationId}}\",\n  \"token\": \"{{qrToken}}\",\n  \"stage\": \"PICKUP\"\n}" },
+            "url": "{{baseUrl}}/donations/qr/verify/"
+          }
+        },
+        {
+          "name": "Update volunteer location",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}" },
+            "url": "{{baseUrl}}/tracking/location/"
+          }
+        },
+        {
+          "name": "Mark all notifications read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/notifications/read-all/"
+          }
+        },
+        {
+          "name": "Create emergency request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"category\": \"VEG\",\n  \"quantity_required\": 50,\n  \"people_served\": 50,\n  \"urgency\": 5,\n  \"address\": \"Shelter address\",\n  \"required_before\": \"REPLACE_WITH_FUTURE_ISO_DATETIME\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}" },
+            "url": "{{baseUrl}}/emergency-requests/"
+          }
+        },
+        {
+          "name": "Submit complaint",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"donation\": \"{{donationId}}\",\n  \"reported_user\": \"replace-with-participant-uuid\",\n  \"category\": \"OTHER\",\n  \"description\": \"Describe the concern.\"\n}" },
+            "url": "{{baseUrl}}/complaints/"
+          }
+        },
+        {
+          "name": "My rewards",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/rewards/me/"
+          }
+        },
+        {
+          "name": "Leaderboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/rewards/leaderboard/"
+          }
+        },
+        {
+          "name": "List events",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/events/"
+          }
+        },
+        {
+          "name": "Admin fraud alerts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/complaints/fraud-alerts/"
+          }
+        },
+        {
+          "name": "Admin reports",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/admin/reports/"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 from django.utils import timezone
 from rest_framework import permissions, status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
 from common.views import ResQBiteAPIView as APIView
 
 from accounts.models import User
@@ -17,6 +18,7 @@ from .serializers import EmergencyFoodRequestSerializer
 class EmergencyRequestListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(operation_id="emergency_request_list")
     def get(self, request):
         queryset = EmergencyFoodRequest.objects.select_related("organization").order_by("required_before")
         if request.user.role == User.ROLE_NGO:
@@ -52,6 +54,7 @@ class EmergencyRequestDetailView(APIView):
             raise PermissionDenied()
         return obj
 
+    @extend_schema(operation_id="emergency_request_retrieve")
     def get(self, request, request_id):
         obj = self._get(request, request_id)
         if obj is None:
@@ -65,13 +68,12 @@ class EmergencyRequestDetailView(APIView):
         requested_status = request.data.get("status")
         if requested_status and request.user.role != User.ROLE_ADMIN:
             raise PermissionDenied("Only administrators may change request status.")
+        if requested_status and requested_status not in {choice for choice, _ in EmergencyFoodRequest.STATUS_CHOICES}:
+            raise ValidationError({"status": "Invalid emergency request status."})
         serializer = EmergencyFoodRequestSerializer(obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         obj = serializer.save()
         if requested_status:
-            allowed_statuses = {choice for choice, _ in EmergencyFoodRequest.STATUS_CHOICES}
-            if requested_status not in allowed_statuses:
-                raise ValidationError({"status": "Invalid emergency request status."})
             obj.status = requested_status
             obj.save(update_fields=["status", "updated_at"])
         matches = Donation.objects.filter(

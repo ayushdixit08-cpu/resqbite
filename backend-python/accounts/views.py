@@ -14,6 +14,7 @@ from rest_framework_simplejwt.views import TokenRefreshView as SimpleJWTTokenRef
 from .models import User
 from .serializers import LoginSerializer, ProfileSerializer, RegisterSerializer, UserSerializer
 from common.responses import success_response
+from complaints.fraud_service import inspect_registration
 
 token_generator = PasswordResetTokenGenerator()
 
@@ -27,6 +28,7 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        inspect_registration(user)
         refresh = RefreshToken.for_user(user)
         return success_response(
             {

@@ -181,6 +181,7 @@ class DonationViewSet(ModelViewSet):
                 raise ValidationError("Only donations that have not been accepted can be cancelled.")
             donation.status = Donation.STATUS_CANCELLED
             donation.save(update_fields=["status", "updated_at"])
+            inspect_donation(donation)
             TrackingEvent.objects.create(donation=donation, status="CANCELLED", actor=request.user)
         return success_response(self.get_serializer(donation).data, "Donation cancelled.")
 

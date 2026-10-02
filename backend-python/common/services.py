@@ -1,7 +1,7 @@
 from math import asin, cos, radians, sin, sqrt
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError
 
 
 def haversine_km(latitude_a, longitude_a, latitude_b, longitude_b):

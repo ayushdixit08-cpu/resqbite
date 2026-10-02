@@ -98,12 +98,22 @@ class AnalyticsOverviewView(APIView):
     def _admin_metrics():
         completed = Donation.objects.filter(status=Donation.STATUS_COMPLETED)
         total = Donation.objects.count()
+        rescued_kg = 0.0
+        serving_kg = float(os.getenv("IMPACT_KG_PER_SERVING", "0.4"))
+        for quantity, unit in completed.values_list("quantity", "quantity_unit"):
+            quantity_value = float(quantity)
+            rescued_kg += (
+                quantity_value if unit == "kg"
+                else quantity_value / 1000 if unit == "g"
+                else quantity_value * 0.45359237 if unit == "lb"
+                else quantity_value * serving_kg
+            )
         return {
             "total_users": User.objects.count(),
             "total_ngos": Organization.objects.count(),
             "verified_ngos": Organization.objects.filter(verification_status="VERIFIED").count(),
             "total_donations": total,
-            "food_rescued_quantity": completed.aggregate(total=Sum("quantity"))["total"] or 0,
+            "food_rescued_kg_estimate": round(rescued_kg, 2),
             "meals_provided": completed.aggregate(total=Sum("people_served"))["total"] or 0,
             "active_volunteers": VolunteerProfile.objects.filter(is_available=True).count(),
             "completion_rate": round(completed.count() * 100 / total, 2) if total else 0,
@@ -129,7 +139,18 @@ class EnvironmentalImpactView(APIView):
 
     def get(self, request):
         completed = Donation.objects.filter(status=Donation.STATUS_COMPLETED)
-        quantity_kg = float(completed.aggregate(total=Sum("quantity"))["total"] or 0)
+        serving_kg = float(os.getenv("IMPACT_KG_PER_SERVING", "0.4"))
+        quantity_kg = 0.0
+        for quantity, unit in completed.values_list("quantity", "quantity_unit"):
+            quantity_value = float(quantity)
+            if unit == "kg":
+                quantity_kg += quantity_value
+            elif unit == "g":
+                quantity_kg += quantity_value / 1000
+            elif unit == "lb":
+                quantity_kg += quantity_value * 0.45359237
+            else:
+                quantity_kg += quantity_value * serving_kg
         kg_factor = float(os.getenv("IMPACT_CO2_KG_PER_KG_FOOD", "2.5"))
         water_factor = float(os.getenv("IMPACT_WATER_LITERS_PER_KG_FOOD", "1000"))
         return success_response({
@@ -137,7 +158,11 @@ class EnvironmentalImpactView(APIView):
             "food_waste_reduced_kg": round(quantity_kg, 2),
             "co2_avoided_kg": round(quantity_kg * kg_factor, 2),
             "water_saved_liters": round(quantity_kg * water_factor, 2),
-            "factors": {"co2_kg_per_kg_food": kg_factor, "water_liters_per_kg_food": water_factor},
+            "factors": {
+                "kg_per_serving": serving_kg,
+                "co2_kg_per_kg_food": kg_factor,
+                "water_liters_per_kg_food": water_factor,
+            },
         })
 
 

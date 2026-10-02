@@ -5,8 +5,7 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from common.views import HealthView
-from analytics.views import AnalyticsOverviewView, DashboardView
-from accounts.views import MeView
+from analytics.views import DashboardView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -14,7 +13,6 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/auth/", include("accounts.urls")),
-    path("api/users/me", MeView.as_view(), name="users-me-compat"),
     path("api/dashboard", DashboardView.as_view(), name="dashboard-compat"),
     path("api/ngos/", include("organizations.urls")),
     path("api/organizations/", include("organizations.urls")),
