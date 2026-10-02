@@ -107,6 +107,9 @@ class NearbyOrganizationsView(generics.GenericAPIView):
                 data["distance_km"] = round(distance, 2)
                 nearby.append(data)
         nearby.sort(key=lambda item: item["distance_km"])
+        page = self.paginate_queryset(nearby)
+        if page is not None:
+            return self.get_paginated_response(page)
         return success_response(nearby)
 
 

@@ -132,7 +132,7 @@ const api = {
   donationTracking: async (id) => {
     const result = await authenticatedRequest(`/tracking/donation/${id}/`);
     return {
-      donation: { id: result.donation_id, status: result.status },
+      donation: { id: result.donation_id, status: String(result.status || "").toLowerCase() },
       timeline: result.events || [],
     };
   },

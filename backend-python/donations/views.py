@@ -123,11 +123,10 @@ class DonationViewSet(ModelViewSet):
             queryset = queryset.filter(food_type__icontains=request.query_params["food_type"])
         if request.query_params.get("expiry_before"):
             queryset = queryset.filter(expires_at__lte=request.query_params["expiry_before"])
-        for field in ("min_quantity", "max_quantity"):
-            if request.query_params.get(field):
-                queryset = queryset.filter(quantity__gte=request.query_params[field] if field == "min_quantity" else Q())
-                if field == "max_quantity":
-                    queryset = queryset.filter(quantity__lte=request.query_params[field])
+        if request.query_params.get("min_quantity"):
+            queryset = queryset.filter(quantity__gte=request.query_params["min_quantity"])
+        if request.query_params.get("max_quantity"):
+            queryset = queryset.filter(quantity__lte=request.query_params["max_quantity"])
         page = self.paginate_queryset(queryset)
         if page is not None:
             return self.get_paginated_response(self.get_serializer(page, many=True).data)
@@ -157,6 +156,9 @@ class DonationViewSet(ModelViewSet):
                 item["distance_km"] = round(distance, 2)
                 matches.append(item)
         matches.sort(key=lambda item: item["distance_km"])
+        page = self.paginate_queryset(matches)
+        if page is not None:
+            return self.get_paginated_response(page)
         return success_response(matches)
 
     @action(detail=True, methods=["get"])

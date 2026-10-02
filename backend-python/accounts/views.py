@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView as SimpleJWTTokenRefreshView
 
 from .models import User
 from .serializers import LoginSerializer, ProfileSerializer, RegisterSerializer, UserSerializer
@@ -20,6 +21,7 @@ token_generator = PasswordResetTokenGenerator()
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -40,6 +42,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -94,6 +97,15 @@ class LogoutView(APIView):
         except TokenError as exc:
             raise ValidationError({"refresh": "The refresh token is invalid or expired."}) from exc
         return success_response({}, "Logged out successfully.")
+
+
+class TokenRefreshView(SimpleJWTTokenRefreshView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        return success_response(response.data, "Token refreshed.")
 
 
 class PasswordResetRequestView(APIView):

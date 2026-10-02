@@ -26,7 +26,7 @@ def validate_image(image):
 
     max_size = settings.FILE_UPLOAD_MAX_MEMORY_SIZE
     if image.size > max_size:
-        raise ValidationError("Image exceeds the maximum allowed size of 5 MB.")
+        raise ValidationError(f"Image exceeds the maximum allowed size of {max_size // (1024 * 1024)} MB.")
     if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
         raise ValidationError("Only JPEG, PNG, and WebP images are accepted.")
 
@@ -36,6 +36,12 @@ def validate_image(image):
             decoded.verify()
             if decoded.format not in {"JPEG", "PNG", "WEBP"}:
                 raise ValidationError("Unsupported image format.")
-        image.seek(0)
-    except (UnidentifiedImageError, OSError) as exc:
+            if decoded.width * decoded.height > 40_000_000:
+                raise ValidationError("Image dimensions exceed the maximum allowed pixel count.")
+            expected_mime = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}[decoded.format]
+            if image.content_type != expected_mime:
+                raise ValidationError("Image content does not match the declared file type.")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise ValidationError("Uploaded file is not a valid image.") from exc
+    finally:
+        image.seek(0)

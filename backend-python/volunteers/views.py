@@ -61,4 +61,10 @@ class NearbyVolunteersView(APIView):
                     "distance_km": round(distance, 2),
                 })
         results.sort(key=lambda item: item["distance_km"])
+        from common.pagination import ResQBitePagination
+
+        paginator = ResQBitePagination()
+        page = paginator.paginate_queryset(results, request, view=self)
+        if page is not None:
+            return paginator.get_paginated_response(page)
         return success_response(results)

@@ -1,4 +1,4 @@
-from django.shortcuts import render
+
 
 # Create your views here.
 import os
@@ -46,7 +46,7 @@ class AnalyticsOverviewView(APIView):
     def get(self, request):
         user = request.user if request.user.is_authenticated else None
         if user is None:
-            return success_response(self._admin_metrics())
+            return success_response(self._public_metrics())
         if user.role == User.ROLE_DONOR:
             donations = Donation.objects.filter(donor=user)
             data = {
@@ -107,6 +107,20 @@ class AnalyticsOverviewView(APIView):
             "meals_provided": completed.aggregate(total=Sum("people_served"))["total"] or 0,
             "active_volunteers": VolunteerProfile.objects.filter(is_available=True).count(),
             "completion_rate": round(completed.count() * 100 / total, 2) if total else 0,
+        }
+
+    @staticmethod
+    def _public_metrics():
+        metrics = AnalyticsOverviewView._admin_metrics()
+        return {
+            **metrics,
+            "mealsRescued": metrics["meals_provided"],
+            "verifiedNgoCount": metrics["verified_ngos"],
+            "volunteerCount": VolunteerProfile.objects.count(),
+            "totalDonations": metrics["total_donations"],
+            "activeDonations": Donation.objects.filter(status__in=["PENDING", "ACCEPTED"]).count(),
+            "inTransit": PickupTask.objects.filter(status="IN_TRANSIT").count(),
+            "deliveredDonations": Donation.objects.filter(status=Donation.STATUS_COMPLETED).count(),
         }
 
 
@@ -194,7 +208,26 @@ class DashboardView(APIView):
             "deliveredDonations": completed.count(),
             "totalDonations": total,
         }
-        return success_response({"stats": stats, "weeklyMeals": weekly_meal_totals(donations, 7)})
+        from rewards.models import Reward
+
+        stats["rescuePoints"] = Reward.objects.filter(user=request.user).aggregate(total=Sum("points"))["total"] or 0
+        stats["todayDonations"] = donations.filter(created_at__date=timezone.localdate()).count()
+        previous_week = donations.filter(
+            status=Donation.STATUS_COMPLETED,
+            updated_at__date__gte=timezone.localdate() - timedelta(days=14),
+            updated_at__date__lt=timezone.localdate() - timedelta(days=7),
+        ).aggregate(total=Sum("people_served"))["total"] or 0
+        this_week = donations.filter(
+            status=Donation.STATUS_COMPLETED,
+            updated_at__date__gte=timezone.localdate() - timedelta(days=7),
+        ).aggregate(total=Sum("people_served"))["total"] or 0
+        stats["tier"] = "Gold" if stats["rescuePoints"] >= 1000 else "Silver" if stats["rescuePoints"] >= 250 else "Bronze"
+        weekly_change = round((this_week - previous_week) * 100 / previous_week, 1) if previous_week else 0
+        return success_response({
+            "stats": stats,
+            "weeklyMeals": weekly_meal_totals(donations, 7),
+            "weeklyChange": weekly_change,
+        })
 
 
 class AnalyticsTopOrganizationsView(APIView):
