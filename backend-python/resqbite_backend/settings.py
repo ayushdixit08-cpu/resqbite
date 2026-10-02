@@ -10,16 +10,20 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
-from pathlib import Path
 import os
+from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ValueError("SECRET_KEY must be set when DEBUG is disabled.")
+    SECRET_KEY = "django-insecure-local-development-only"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
 
 INSTALLED_APPS = [
@@ -31,6 +35,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
     "drf_spectacular",
     "accounts",
@@ -79,25 +84,29 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "resqbite_backend.wsgi.application"
 
-DB_ENGINE = os.getenv("DB_ENGINE", "sqlite3")
-if DB_ENGINE == "postgresql":
+DB_ENGINE = os.getenv("DB_ENGINE", "postgresql").lower()
+if DB_ENGINE in {"postgresql", "postgres"}:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("DB_NAME", "resqbite"),
-            "USER": os.getenv("DB_USER", "postgres"),
-            "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
-            "HOST": os.getenv("DB_HOST", "localhost"),
-            "PORT": os.getenv("DB_PORT", "5432"),
+            "NAME": os.environ.get("DB_NAME", "resqbite"),
+            "USER": os.environ.get("DB_USER", ""),
+            "PASSWORD": os.environ.get("DB_PASSWORD", ""),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "5432"),
+            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+            "OPTIONS": {"connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "5"))},
         }
     }
-else:
+elif DB_ENGINE == "sqlite3" and DEBUG:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": os.getenv("DB_NAME", str(BASE_DIR / "db.sqlite3")),
         }
     }
+else:
+    raise ValueError("DB_ENGINE must be 'postgresql' (production) or 'sqlite3' (DEBUG only).")
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -107,6 +116,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 AUTH_USER_MODEL = "accounts.User"
+AUTH_PASSWORD_VALIDATORS = AUTH_PASSWORD_VALIDATORS
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -127,18 +137,54 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PAGINATION_CLASS": "common.pagination.ResQBitePagination",
+    "PAGE_SIZE": int(os.getenv("API_PAGE_SIZE", "20")),
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.getenv("API_ANON_RATE", "100/hour"),
+        "user": os.getenv("API_USER_RATE", "1000/hour"),
+        "auth": os.getenv("API_AUTH_RATE", "10/hour"),
+    },
+    "EXCEPTION_HANDLER": "common.exceptions.api_exception_handler",
 }
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "SIGNING_KEY": os.getenv("JWT_SECRET_KEY", SECRET_KEY),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
+
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+]
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
+]
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "False").lower() == "true"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", str(5 * 1024 * 1024)))
+DATA_UPLOAD_MAX_MEMORY_SIZE = FILE_UPLOAD_MAX_MEMORY_SIZE
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@resqbite.local")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "ResQBite API",

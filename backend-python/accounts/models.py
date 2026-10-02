@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -6,6 +8,7 @@ from .managers import UserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ROLE_DONOR = "DONOR"
     ROLE_NGO = "NGO"
     ROLE_VOLUNTEER = "VOLUNTEER"
@@ -22,6 +25,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=20, blank=True, default="")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_DONOR)
     profile_image = models.ImageField(upload_to="profile_images/", blank=True, null=True)
+    address = models.CharField(max_length=255, blank=True, default="")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -35,6 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         db_table = "users"
+        indexes = [models.Index(fields=["role", "is_active"])]
 
     def __str__(self):
         return f"{self.name} <{self.email}>"
