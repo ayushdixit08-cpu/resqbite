@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "django_filters",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
@@ -42,6 +43,7 @@ INSTALLED_APPS = [
     "organizations",
     "donations",
     "pickups",
+    "volunteers",
     "tracking",
     "notifications",
     "reviews",
@@ -116,7 +118,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 AUTH_USER_MODEL = "accounts.User"
-AUTH_PASSWORD_VALIDATORS = AUTH_PASSWORD_VALIDATORS
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -137,11 +138,13 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
     "DEFAULT_PAGINATION_CLASS": "common.pagination.ResQBitePagination",
     "PAGE_SIZE": int(os.getenv("API_PAGE_SIZE", "20")),
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": os.getenv("API_ANON_RATE", "100/hour"),
