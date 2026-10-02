@@ -21,6 +21,8 @@ class PickupTaskViewSet(ModelViewSet):
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return PickupTask.objects.none()
         user = self.request.user
         queryset = PickupTask.objects.select_related("donation", "organization", "volunteer")
         if user.role == User.ROLE_VOLUNTEER:

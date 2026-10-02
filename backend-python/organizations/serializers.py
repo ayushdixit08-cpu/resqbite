@@ -23,7 +23,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "verification_status", "response_time_minutes", "created_at", "updated_at")
 
-    def get_type(self, instance):
+    def get_type(self, instance) -> str:
         return "NGO"
 
     def validate_latitude(self, value):

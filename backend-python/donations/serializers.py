@@ -13,7 +13,7 @@ class DonationImageSerializer(serializers.ModelSerializer):
         fields = ("id", "url", "alt_text", "created_at")
         read_only_fields = fields
 
-    def get_url(self, instance):
+    def get_url(self, instance) -> str:
         request = self.context.get("request")
         url = instance.image.url
         return request.build_absolute_uri(url) if request else url

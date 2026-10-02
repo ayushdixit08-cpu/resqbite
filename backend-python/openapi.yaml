@@ -679,33 +679,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/auth/forgot-password:
-    post:
-      operationId: auth_forgot_password_create
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
   /api/auth/google:
     post:
       operationId: auth_google_create
@@ -733,7 +706,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/auth/login:
+  /api/auth/login/:
     post:
       operationId: auth_login_create
       tags:
@@ -760,34 +733,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/auth/login/:
-    post:
-      operationId: auth_login_create_2
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
-  /api/auth/logout:
+  /api/auth/logout/:
     post:
       operationId: auth_logout_create
       tags:
@@ -813,49 +759,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/auth/logout/:
-    post:
-      operationId: auth_logout_create_2
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
-  /api/auth/me:
-    get:
-      operationId: auth_me_retrieve
-      tags:
-      - auth
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
   /api/auth/me/:
     get:
-      operationId: auth_me_retrieve_2
+      operationId: auth_me_retrieve
       tags:
       - auth
       security:
@@ -921,7 +827,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
-  /api/auth/profile:
+  /api/auth/profile/:
     get:
       operationId: auth_profile_retrieve
       tags:
@@ -984,70 +890,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Profile'
           description: ''
-  /api/auth/profile/:
-    get:
-      operationId: auth_profile_retrieve_2
-      tags:
-      - auth
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Profile'
-          description: ''
-    put:
-      operationId: auth_profile_update_2
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Profile'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Profile'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Profile'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Profile'
-          description: ''
-    patch:
-      operationId: auth_profile_partial_update_2
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedProfile'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedProfile'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedProfile'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Profile'
-          description: ''
-  /api/auth/register:
+  /api/auth/register/:
     post:
       operationId: auth_register_create
       tags:
@@ -1073,60 +916,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Register'
-          description: ''
-  /api/auth/register/:
-    post:
-      operationId: auth_register_create_2
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Register'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Register'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Register'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Register'
-          description: ''
-  /api/auth/reset-password:
-    post:
-      operationId: auth_reset_password_create
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/APIResponse'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
           description: ''
   /api/auth/token/refresh/:
     post:
@@ -1316,6 +1105,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1335,6 +1126,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1366,6 +1159,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1396,6 +1191,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1412,6 +1209,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1444,6 +1243,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1464,6 +1265,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this donation.
         required: true
       tags:
       - donations
@@ -1732,7 +1535,7 @@ paths:
           description: ''
   /api/emergency-requests/:
     get:
-      operationId: emergency_requests_retrieve
+      operationId: emergency_request_list
       tags:
       - emergency-requests
       security:
@@ -1771,7 +1574,7 @@ paths:
           description: ''
   /api/emergency-requests/{request_id}/:
     get:
-      operationId: emergency_requests_retrieve_2
+      operationId: emergency_request_retrieve
       parameters:
       - in: path
         name: request_id
@@ -2361,6 +2164,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this pickup task.
         required: true
       tags:
       - pickups
@@ -2380,6 +2185,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this pickup task.
         required: true
       tags:
       - pickups
@@ -2411,6 +2218,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this pickup task.
         required: true
       tags:
       - pickups
@@ -2442,6 +2251,8 @@ paths:
         name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this pickup task.
         required: true
       tags:
       - pickups
@@ -2675,20 +2486,6 @@ paths:
             schema:
               $ref: '#/components/schemas/APIResponse'
         required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIResponse'
-          description: ''
-  /api/users/me:
-    get:
-      operationId: users_me_retrieve
-      tags:
-      - users
       security:
       - jwtAuth: []
       responses:
@@ -2946,8 +2743,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         quantity_unit:
-          type: string
-          maxLength: 30
+          $ref: '#/components/schemas/QuantityUnitEnum'
         people_served:
           type: integer
           maximum: 9223372036854775807
@@ -3136,6 +2932,7 @@ components:
           type: string
           format: uri
           nullable: true
+          writeOnly: true
         phone:
           type: string
           maxLength: 25
@@ -3345,8 +3142,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         quantity_unit:
-          type: string
-          maxLength: 30
+          $ref: '#/components/schemas/QuantityUnitEnum'
         people_served:
           type: integer
           maximum: 9223372036854775807
@@ -3418,6 +3214,7 @@ components:
           type: string
           format: uri
           nullable: true
+          writeOnly: true
         phone:
           type: string
           maxLength: 25
@@ -3829,6 +3626,18 @@ components:
       - name
       - role
       - updated_at
+    QuantityUnitEnum:
+      enum:
+      - kg
+      - g
+      - lb
+      - servings
+      type: string
+      description: |-
+        * `kg` - Kilograms
+        * `g` - Grams
+        * `lb` - Pounds
+        * `servings` - Servings
     Register:
       type: object
       properties:

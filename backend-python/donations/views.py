@@ -33,6 +33,8 @@ class DonationViewSet(ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Donation.objects.none()
         now = timezone.now()
         user = self.request.user
         donations = Donation.objects.select_related("donor", "organization").prefetch_related("images", "tracking_events")
@@ -216,6 +218,8 @@ class DonationRequestViewSet(ModelViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return DonationRequest.objects.none()
         user = self.request.user
         if user.role == User.ROLE_ADMIN:
             return DonationRequest.objects.select_related("donation", "organization", "organization__user")
