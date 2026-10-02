@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     EmailVerificationConfirmView,
     EmailVerificationRequestView,
+    GoogleSignInView,
     LoginView,
     LogoutView,
     MeView,
@@ -15,13 +16,21 @@ from .views import (
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
+    path("register", RegisterView.as_view(), name="register-no-slash"),
     path("login/", LoginView.as_view(), name="login"),
+    path("login", LoginView.as_view(), name="login-no-slash"),
     path("logout/", LogoutView.as_view(), name="logout"),
+    path("logout", LogoutView.as_view(), name="logout-no-slash"),
     path("me/", MeView.as_view(), name="me"),
+    path("me", MeView.as_view(), name="me-no-slash"),
     path("profile/", ProfileView.as_view(), name="profile"),
+    path("profile", ProfileView.as_view(), name="profile-no-slash"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("password-reset/", PasswordResetRequestView.as_view(), name="password_reset"),
+    path("forgot-password", PasswordResetRequestView.as_view(), name="forgot_password_compat"),
     path("password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
+    path("reset-password", PasswordResetConfirmView.as_view(), name="reset_password_compat"),
     path("email-verification/", EmailVerificationRequestView.as_view(), name="email_verification"),
     path("email-verification/confirm/", EmailVerificationConfirmView.as_view(), name="email_verification_confirm"),
+    path("google", GoogleSignInView.as_view(), name="google-sign-in"),
 ]

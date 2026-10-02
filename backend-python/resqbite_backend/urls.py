@@ -5,6 +5,8 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from common.views import HealthView
+from analytics.views import AnalyticsOverviewView
+from accounts.views import MeView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -12,15 +14,19 @@ urlpatterns = [
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/auth/", include("accounts.urls")),
+    path("api/users/me", MeView.as_view(), name="users-me-compat"),
     path("api/ngos/", include("organizations.urls")),
     path("api/organizations/", include("organizations.urls")),
+    path("api/organizations", include("organizations.urls")),
     path("api/donations/", include("donations.urls")),
+    path("api/donations", include("donations.urls")),
     path("api/pickups/", include("pickups.urls")),
     path("api/volunteers/", include("volunteers.urls")),
     path("api/tracking/", include("tracking.urls")),
     path("api/notifications/", include("notifications.urls")),
     path("api/reviews/", include("reviews.urls")),
     path("api/analytics/", include("analytics.urls")),
+    path("api/analytics/overview", AnalyticsOverviewView.as_view(), name="analytics-overview-no-slash"),
     path("api/rewards/", include("rewards.urls")),
     path("api/complaints/", include("complaints.urls")),
     path("api/emergency-requests/", include("emergency_requests.urls")),

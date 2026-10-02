@@ -147,7 +147,7 @@ class DonationAPITests(APITestCase):
         self.assertEqual(donation.status, Donation.STATUS_COMPLETED)
         self.assertEqual(task.status, PickupTask.STATUS_DELIVERED)
         self.assertTrue(Notification.objects.filter(recipient=self.donor, notification_type="FOOD_DELIVERED").exists())
-        self.assertGreater(volunteer.volunteer_profile.points, 0)
+        self.assertGreater(VolunteerProfile.objects.get(user=volunteer).points, 0)
 
         self.client.force_authenticate(self.donor)
         review = self.client.post(

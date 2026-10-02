@@ -18,7 +18,7 @@ from .serializers import PickupTaskSerializer
 class PickupTaskViewSet(ModelViewSet):
     serializer_class = PickupTaskSerializer
     permission_classes = [permissions.IsAuthenticated]
-    http_method_names = ["get", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_queryset(self):
         user = self.request.user

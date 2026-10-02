@@ -177,3 +177,18 @@ class EmailVerificationConfirmView(APIView):
         user.is_verified = True
         user.save(update_fields=["is_verified"])
         return success_response({}, "Email verified.")
+
+
+class GoogleSignInView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        return Response(
+            {
+                "success": False,
+                "message": "Google sign-in is not configured for this deployment.",
+                "errors": {"provider": "Configure and validate a Google OAuth client before enabling sign-in."},
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )

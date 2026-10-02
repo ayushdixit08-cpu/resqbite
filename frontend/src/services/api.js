@@ -14,10 +14,11 @@ export class ApiError extends Error {
   }
 }
 
-function buildHeaders(headers = {}) {
+function buildHeaders(headers = {}, body) {
   const token = localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token");
+  const isMultipart = typeof FormData !== "undefined" && body instanceof FormData;
   return {
-    "Content-Type": "application/json",
+    ...(!isMultipart ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...headers,
   };
@@ -35,7 +36,7 @@ export async function apiRequest(path, options = {}) {
     response = await fetch(url, {
       ...options,
       signal: options.signal || controller.signal,
-      headers: buildHeaders(options.headers || {}),
+      headers: buildHeaders(options.headers || {}, options.body),
     });
   } catch (error) {
     const message = error.name === "AbortError"
@@ -67,8 +68,9 @@ export async function apiRequest(path, options = {}) {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const data = await response.json();
-    if (cacheable) apiResultCache.set(path, data);
-    return data;
+    const normalized = data?.success === true && Object.hasOwn(data, "data") ? data.data : data;
+    if (cacheable) apiResultCache.set(path, normalized);
+    return normalized;
   }
 
   return response.text();
