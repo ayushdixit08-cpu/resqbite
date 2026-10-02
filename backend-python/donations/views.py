@@ -13,13 +13,14 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from accounts.models import User
-from common.permissions import IsAdminUserRole, IsNGO
 from common.responses import success_response
 from common.services import haversine_km
 from notifications.models import Notification
 from organizations.models import Organization
 from pickups.models import PickupTask
 from tracking.models import TrackingEvent
+from complaints.fraud_service import inspect_donation
+from rewards.services import award_points
 
 from .matching_service import recommend_organizations
 from .models import Donation, DonationRequest, QRVerification
@@ -63,6 +64,7 @@ class DonationViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         donation = serializer.save(donor=request.user)
         TrackingEvent.objects.create(donation=donation, status="DONATION_CREATED", actor=request.user)
+        inspect_donation(donation)
         Notification.objects.create(
             recipient=request.user,
             notification_type="DONATION_CREATED",
@@ -304,6 +306,8 @@ class QRGenerateView(ModelViewSet):
             raise PermissionDenied()
         if donation.status != Donation.STATUS_ACCEPTED:
             raise ValidationError("QR verification can be generated only after an NGO accepts the donation.")
+        if donation.expires_at <= timezone.now():
+            raise ValidationError("Expired donations cannot be QR-verified.")
         raw_token = secrets.token_urlsafe(32)
         with transaction.atomic():
             verification, _ = QRVerification.objects.select_for_update().get_or_create(
@@ -346,12 +350,16 @@ class QRVerifyView(ModelViewSet):
                 raise ValidationError("The QR verification token is invalid.")
             now = timezone.now()
             if stage == "PICKUP":
+                if task.status != PickupTask.STATUS_PICKUP_STARTED:
+                    raise ValidationError("Pickup QR can only be verified after pickup has started.")
                 if verification.pickup_verified_at:
                     raise ValidationError("Pickup QR verification has already been used.")
                 verification.pickup_verified_at = now
                 task.status = PickupTask.STATUS_PICKED_UP
                 TrackingEvent.objects.create(donation=task.donation, status="PICKED_UP", actor=request.user)
             else:
+                if task.status != PickupTask.STATUS_IN_TRANSIT:
+                    raise ValidationError("Delivery QR can only be verified while the delivery is in transit.")
                 if not verification.pickup_verified_at or verification.delivery_verified_at:
                     raise ValidationError("Delivery can be verified once after a verified pickup.")
                 verification.delivery_verified_at = now
@@ -359,7 +367,13 @@ class QRVerifyView(ModelViewSet):
                 task.completed_at = now
                 task.donation.status = Donation.STATUS_COMPLETED
                 task.donation.save(update_fields=["status", "updated_at"])
+                profile = task.volunteer.volunteer_profile
+                profile.is_available = True
+                profile.save(update_fields=["is_available", "updated_at"])
                 TrackingEvent.objects.create(donation=task.donation, status="DELIVERED", actor=request.user)
+                award_points(task.donation.donor, 10, "DONATION_DELIVERED", task.donation_id)
+                award_points(task.volunteer, 20, "DONATION_DELIVERED", task.donation_id)
+                award_points(task.organization.user, 10, "DONATION_RECEIVED", task.donation_id)
                 Notification.objects.create(
                     recipient=task.donation.donor,
                     notification_type="FOOD_DELIVERED",

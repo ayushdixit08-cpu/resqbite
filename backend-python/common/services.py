@@ -1,5 +1,6 @@
 from math import asin, cos, radians, sin, sqrt
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 
 
@@ -23,7 +24,7 @@ def haversine_km(latitude_a, longitude_a, latitude_b, longitude_b):
 def validate_image(image):
     from PIL import Image, UnidentifiedImageError
 
-    max_size = 5 * 1024 * 1024
+    max_size = settings.FILE_UPLOAD_MAX_MEMORY_SIZE
     if image.size > max_size:
         raise ValidationError("Image exceeds the maximum allowed size of 5 MB.")
     if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:

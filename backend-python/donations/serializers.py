@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from common.services import validate_image
 from .models import Donation, DonationImage, DonationRequest, FoodSafetyChecklist
@@ -49,6 +50,10 @@ class DonationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         prepared_at = attrs.get("prepared_at", getattr(self.instance, "prepared_at", None))
         expires_at = attrs.get("expires_at", getattr(self.instance, "expires_at", None))
+        if prepared_at and prepared_at > timezone.now():
+            raise serializers.ValidationError({"prepared_at": "Preparation time cannot be in the future."})
+        if expires_at and expires_at <= timezone.now():
+            raise serializers.ValidationError({"expires_at": "Expiry time must be in the future."})
         if prepared_at and expires_at and expires_at <= prepared_at:
             raise serializers.ValidationError({"expires_at": "Expiry time must be later than preparation time."})
         checklist_data = attrs.get("food_safety")
@@ -67,6 +72,21 @@ class DonationSerializer(serializers.ModelSerializer):
 
         DonationImage.objects.bulk_create([DonationImage(donation=donation, image=image) for image in images])
         return donation
+
+    def update(self, instance, validated_data):
+        checklist_data = validated_data.pop("food_safety", None)
+        images = validated_data.pop("images", [])
+        instance = super().update(instance, validated_data)
+        if checklist_data is not None:
+            FoodSafetyChecklist.objects.update_or_create(
+                donation=instance,
+                defaults=checklist_data,
+            )
+        if images:
+            from .models import DonationImage
+
+            DonationImage.objects.bulk_create([DonationImage(donation=instance, image=image) for image in images])
+        return instance
 
 
 class DonationRequestSerializer(serializers.ModelSerializer):

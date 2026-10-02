@@ -15,6 +15,7 @@ from donations.models import Donation
 from organizations.models import Organization
 from pickups.models import PickupTask
 from volunteers.models import VolunteerProfile
+from common.services import haversine_km
 
 
 class AnalyticsOverviewView(APIView):
@@ -46,10 +47,21 @@ class AnalyticsOverviewView(APIView):
         elif user.role == User.ROLE_VOLUNTEER:
             tasks = PickupTask.objects.filter(volunteer=user)
             profile = VolunteerProfile.objects.filter(user=user).first()
+            completed_tasks = tasks.filter(status="DELIVERED")
+            distance_travelled = 0.0
+            for task in completed_tasks:
+                if all(value is not None for value in (
+                    task.pickup_latitude, task.pickup_longitude,
+                    task.delivery_latitude, task.delivery_longitude,
+                )):
+                    distance_travelled += haversine_km(
+                        task.pickup_latitude, task.pickup_longitude,
+                        task.delivery_latitude, task.delivery_longitude,
+                    )
             data = {
                 "active_deliveries": tasks.exclude(status__in=["DELIVERED", "CANCELLED"]).count(),
                 "completed_deliveries": tasks.filter(status="DELIVERED").count(),
-                "distance_travelled_km": 0,
+                "distance_travelled_km": round(distance_travelled, 2),
                 "points": profile.points if profile else 0,
             }
         elif user.role == User.ROLE_ADMIN:
@@ -98,3 +110,71 @@ class AdminDashboardView(APIView):
         if request.user.role != User.ROLE_ADMIN:
             raise PermissionDenied("Administrator role is required.")
         return success_response(AnalyticsOverviewView._admin_metrics())
+
+
+class AdminUserListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.ROLE_ADMIN:
+            raise PermissionDenied("Administrator role is required.")
+        from accounts.serializers import UserSerializer
+
+        users = User.objects.all().order_by("-created_at")
+        role = request.query_params.get("role")
+        if role:
+            users = users.filter(role=role.upper())
+        return success_response(UserSerializer(users[:500], many=True).data)
+
+
+class AdminDeactivateUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, user_id):
+        if request.user.role != User.ROLE_ADMIN:
+            raise PermissionDenied("Administrator role is required.")
+        target = User.objects.filter(pk=user_id).first()
+        if target is None:
+            from rest_framework.exceptions import NotFound
+
+            raise NotFound("User not found.")
+        if target.pk == request.user.pk:
+            raise PermissionDenied("Administrators cannot deactivate their own account.")
+        target.is_active = False
+        target.save(update_fields=["is_active"])
+        return success_response({"id": str(target.id), "is_active": target.is_active}, "User deactivated.")
+
+
+class AdminDonationListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.ROLE_ADMIN:
+            raise PermissionDenied("Administrator role is required.")
+        donations = Donation.objects.select_related("donor", "organization").order_by("-created_at")
+        return success_response(list(donations.values("id", "food_name", "status", "donor__email", "organization__name", "created_at")[:500]))
+
+
+class AdminDeliveryListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.ROLE_ADMIN:
+            raise PermissionDenied("Administrator role is required.")
+        tasks = PickupTask.objects.select_related("donation", "organization", "volunteer").order_by("-assigned_at")
+        return success_response(list(tasks.values("id", "donation_id", "organization__name", "volunteer__email", "status", "assigned_at", "completed_at")[:500]))
+
+
+class AdminReportsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.ROLE_ADMIN:
+            raise PermissionDenied("Administrator role is required.")
+        from complaints.models import Complaint, FraudAlert
+
+        return success_response({
+            "metrics": AnalyticsOverviewView._admin_metrics(),
+            "open_complaints": Complaint.objects.filter(status=Complaint.STATUS_OPEN).count(),
+            "unreviewed_fraud_alerts": FraudAlert.objects.filter(reviewed=False).count(),
+        })

@@ -108,3 +108,16 @@ class NearbyOrganizationsView(generics.GenericAPIView):
                 nearby.append(data)
         nearby.sort(key=lambda item: item["distance_km"])
         return success_response(nearby)
+
+
+class AdminOrganizationListView(generics.GenericAPIView):
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsAdminUserRole]
+
+    def get(self, request):
+        queryset = Organization.objects.select_related("user").order_by("-created_at")
+        page = self.paginate_queryset(queryset)
+        data = self.get_serializer(page if page is not None else queryset, many=True).data
+        if page is not None:
+            return self.get_paginated_response(data)
+        return success_response(data)

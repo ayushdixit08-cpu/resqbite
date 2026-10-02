@@ -29,6 +29,7 @@ class RegisterView(generics.CreateAPIView):
         return success_response(
             {
                 "token": str(refresh.access_token),
+                "access": str(refresh.access_token),
                 "refresh": str(refresh),
                 "user": UserSerializer(user).data,
             },
@@ -48,6 +49,7 @@ class LoginView(APIView):
         return success_response(
             {
                 "token": str(refresh.access_token),
+                "access": str(refresh.access_token),
                 "refresh": str(refresh),
                 "user": UserSerializer(user).data,
             },

@@ -75,6 +75,8 @@ class PickupTaskViewSet(ModelViewSet):
             task.status = PickupTask.STATUS_ACCEPTED
             task.accepted_at = timezone.now()
             task.save(update_fields=["volunteer", "status", "accepted_at", "updated_at"])
+            profile.is_available = False
+            profile.save(update_fields=["is_available", "updated_at"])
             TrackingEvent.objects.create(donation=task.donation, status="VOLUNTEER_ASSIGNED", actor=request.user)
             Notification.objects.create(
                 recipient=task.donation.donor,
