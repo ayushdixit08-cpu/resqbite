@@ -9,7 +9,7 @@ from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.views import APIView
+from common.views import ResQBiteAPIView as APIView
 
 from accounts.models import User
 from common.responses import success_response

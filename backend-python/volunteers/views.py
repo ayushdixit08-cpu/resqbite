@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions, status
 from rest_framework.exceptions import ValidationError
-from rest_framework.views import APIView
+from common.views import ResQBiteAPIView as APIView
 
 from accounts.models import User
 from common.responses import success_response

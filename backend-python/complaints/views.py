@@ -1,7 +1,7 @@
 from rest_framework import permissions, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from common.views import ResQBiteAPIView as APIView
 
 from common.pagination import ResQBitePagination
 from common.responses import success_response

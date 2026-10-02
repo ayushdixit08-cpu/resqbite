@@ -25,6 +25,7 @@ from rewards.services import award_points
 from .matching_service import recommend_organizations
 from .models import Donation, DonationRequest, QRVerification
 from .serializers import DonationSerializer
+from common.serializers import APIResponseSerializer
 
 
 class DonationViewSet(ModelViewSet):
@@ -296,6 +297,7 @@ class DonationRequestViewSet(ModelViewSet):
 
 
 class QRGenerateView(ModelViewSet):
+    serializer_class = APIResponseSerializer
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ["post", "head", "options"]
 
@@ -330,6 +332,7 @@ class QRGenerateView(ModelViewSet):
 
 
 class QRVerifyView(ModelViewSet):
+    serializer_class = APIResponseSerializer
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ["post", "head", "options"]
 

@@ -1,0 +1,3887 @@
+openapi: 3.0.3
+info:
+  title: ResQBite API
+  version: 1.0.0
+  description: Food rescue and delivery backend for NGOs, donors and volunteers.
+paths:
+  /api/admin/complaints/:
+    get:
+      operationId: admin_complaints_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: admin_complaints_create
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/complaints/{complaint_id}/:
+    patch:
+      operationId: admin_complaints_partial_update
+      parameters:
+      - in: path
+        name: complaint_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/complaints/fraud-alerts/:
+    get:
+      operationId: admin_complaints_fraud_alerts_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/dashboard/:
+    get:
+      operationId: admin_dashboard_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/deliveries/:
+    get:
+      operationId: admin_deliveries_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/donations/:
+    get:
+      operationId: admin_donations_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/ngos/:
+    get:
+      operationId: admin_ngos_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/admin/ngos/{id}/verify/:
+    post:
+      operationId: admin_ngos_verify_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/admin/reports/:
+    get:
+      operationId: admin_reports_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/:
+    get:
+      operationId: admin_users_retrieve
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/admin/users/{user_id}/deactivate/:
+    post:
+      operationId: admin_users_deactivate_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai/chat/:
+    get:
+      operationId: ai_chat_retrieve
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: ai_chat_create
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai/expiry-prediction/:
+    get:
+      operationId: ai_expiry_prediction_retrieve
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: ai_expiry_prediction_create
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai/food-quality/:
+    get:
+      operationId: ai_food_quality_retrieve
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: ai_food_quality_create
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai/meal-estimation/:
+    get:
+      operationId: ai_meal_estimation_retrieve
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: ai_meal_estimation_create
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai/ngo-recommendation/:
+    get:
+      operationId: ai_ngo_recommendation_retrieve
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: ai_ngo_recommendation_create
+      tags:
+      - ai
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/dashboard/:
+    get:
+      operationId: analytics_admin_dashboard_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/deliveries/:
+    get:
+      operationId: analytics_admin_deliveries_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/donations/:
+    get:
+      operationId: analytics_admin_donations_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/reports/:
+    get:
+      operationId: analytics_admin_reports_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/users/:
+    get:
+      operationId: analytics_admin_users_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/admin/users/{user_id}/deactivate/:
+    post:
+      operationId: analytics_admin_users_deactivate_create
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/food-mix/:
+    get:
+      operationId: analytics_food_mix_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/impact/:
+    get:
+      operationId: analytics_impact_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/overview:
+    get:
+      operationId: analytics_overview_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/overview/:
+    get:
+      operationId: analytics_overview_retrieve_2
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/status-breakdown/:
+    get:
+      operationId: analytics_status_breakdown_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/top-ngos/:
+    get:
+      operationId: analytics_top_ngos_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/weekly/:
+    get:
+      operationId: analytics_weekly_retrieve
+      tags:
+      - analytics
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/email-verification/:
+    post:
+      operationId: auth_email_verification_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/email-verification/confirm/:
+    post:
+      operationId: auth_email_verification_confirm_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/forgot-password:
+    post:
+      operationId: auth_forgot_password_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/google:
+    post:
+      operationId: auth_google_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login:
+    post:
+      operationId: auth_login_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create_2
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/logout:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create_2
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/me:
+    get:
+      operationId: auth_me_retrieve
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve_2
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/password-reset/:
+    post:
+      operationId: auth_password_reset_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/password-reset/confirm/:
+    post:
+      operationId: auth_password_reset_confirm_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/profile:
+    get:
+      operationId: auth_profile_retrieve
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    put:
+      operationId: auth_profile_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Profile'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    patch:
+      operationId: auth_profile_partial_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+  /api/auth/profile/:
+    get:
+      operationId: auth_profile_retrieve_2
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    put:
+      operationId: auth_profile_update_2
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Profile'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    patch:
+      operationId: auth_profile_partial_update_2
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+  /api/auth/register:
+    post:
+      operationId: auth_register_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: auth_register_create_2
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/auth/reset-password:
+    post:
+      operationId: auth_reset_password_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/complaints/:
+    get:
+      operationId: complaints_retrieve
+      tags:
+      - complaints
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: complaints_create
+      tags:
+      - complaints
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/complaints/{complaint_id}/:
+    patch:
+      operationId: complaints_partial_update
+      parameters:
+      - in: path
+        name: complaint_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - complaints
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/complaints/fraud-alerts/:
+    get:
+      operationId: complaints_fraud_alerts_retrieve
+      tags:
+      - complaints
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dashboard:
+    get:
+      operationId: dashboard_retrieve
+      tags:
+      - dashboard
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/donations:
+    get:
+      operationId: donations_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDonationList'
+          description: ''
+    post:
+      operationId: donations_create
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/:
+    get:
+      operationId: donations_list_2
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDonationList'
+          description: ''
+    post:
+      operationId: donations_create_2
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations{id}/:
+    get:
+      operationId: donations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    put:
+      operationId: donations_update_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    patch:
+      operationId: donations_partial_update_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    delete:
+      operationId: donations_destroy_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/donations{id}/cancel/:
+    post:
+      operationId: donations_cancel_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations{id}/recommendations/:
+    get:
+      operationId: donations_recommendations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations{id}/status/:
+    get:
+      operationId: donations_status_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/{id}/:
+    get:
+      operationId: donations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    put:
+      operationId: donations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    patch:
+      operationId: donations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDonation'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+    delete:
+      operationId: donations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/donations/{id}/cancel/:
+    post:
+      operationId: donations_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Donation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Donation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/{id}/recommendations/:
+    get:
+      operationId: donations_recommendations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/{id}/status/:
+    get:
+      operationId: donations_status_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/history/:
+    get:
+      operationId: donations_history_retrieve
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/my/:
+    get:
+      operationId: donations_my_retrieve
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/nearby/:
+    get:
+      operationId: donations_nearby_retrieve
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donations/qr/{donation_id}/generate/:
+    post:
+      operationId: donations_qr_generate_create
+      parameters:
+      - in: path
+        name: donation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/donations/qr/verify/:
+    post:
+      operationId: donations_qr_verify_create
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/donations/requests/:
+    get:
+      operationId: donations_requests_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDonationRequestList'
+          description: ''
+    post:
+      operationId: donations_requests_create
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donations/requests/{id}/:
+    get:
+      operationId: donations_requests_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donations/requests/{id}/accept/:
+    post:
+      operationId: donations_requests_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donations/requests/{id}/reject/:
+    post:
+      operationId: donations_requests_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donations/search/:
+    get:
+      operationId: donations_search_retrieve
+      tags:
+      - donations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donationshistory/:
+    get:
+      operationId: donationshistory_retrieve
+      tags:
+      - donationshistory
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donationsmy/:
+    get:
+      operationId: donationsmy_retrieve
+      tags:
+      - donationsmy
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donationsnearby/:
+    get:
+      operationId: donationsnearby_retrieve
+      tags:
+      - donationsnearby
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/donationsqr/{donation_id}/generate/:
+    post:
+      operationId: donationsqr_generate_create
+      parameters:
+      - in: path
+        name: donation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donationsqr
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/donationsqr/verify/:
+    post:
+      operationId: donationsqr_verify_create
+      tags:
+      - donationsqr
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: No response body
+  /api/donationsrequests/:
+    get:
+      operationId: donationsrequests_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - donationsrequests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDonationRequestList'
+          description: ''
+    post:
+      operationId: donationsrequests_create
+      tags:
+      - donationsrequests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donationsrequests/{id}/:
+    get:
+      operationId: donationsrequests_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donationsrequests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donationsrequests/{id}/accept/:
+    post:
+      operationId: donationsrequests_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donationsrequests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donationsrequests/{id}/reject/:
+    post:
+      operationId: donationsrequests_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donationsrequests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donationssearch/:
+    get:
+      operationId: donationssearch_retrieve
+      tags:
+      - donationssearch
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Donation'
+          description: ''
+  /api/emergency-requests/:
+    get:
+      operationId: emergency_requests_retrieve
+      tags:
+      - emergency-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: emergency_requests_create
+      tags:
+      - emergency-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/emergency-requests/{request_id}/:
+    get:
+      operationId: emergency_requests_retrieve_2
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - emergency-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: emergency_requests_partial_update
+      parameters:
+      - in: path
+        name: request_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - emergency-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/events/:
+    get:
+      operationId: events_retrieve
+      tags:
+      - events
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: events_create
+      tags:
+      - events
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/events/{event_id}/:
+    patch:
+      operationId: events_partial_update
+      parameters:
+      - in: path
+        name: event_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - events
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/health/:
+    get:
+      operationId: health_retrieve
+      tags:
+      - health
+      responses:
+        '200':
+          description: No response body
+  /api/ngos/:
+    get:
+      operationId: ngos_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - ngos
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationList'
+          description: ''
+  /api/ngos/{id}/:
+    get:
+      operationId: ngos_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - ngos
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/ngos/{id}/verify/:
+    post:
+      operationId: ngos_verify_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - ngos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/ngos/nearby/:
+    get:
+      operationId: ngos_nearby_retrieve
+      tags:
+      - ngos
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/ngos/profile/:
+    get:
+      operationId: ngos_profile_retrieve
+      tags:
+      - ngos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    post:
+      operationId: ngos_profile_create
+      tags:
+      - ngos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    patch:
+      operationId: ngos_profile_partial_update
+      tags:
+      - ngos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/notifications/:
+    get:
+      operationId: notifications_retrieve
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/{notification_id}/read/:
+    patch:
+      operationId: notifications_read_partial_update
+      parameters:
+      - in: path
+        name: notification_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/read-all/:
+    post:
+      operationId: notifications_read_all_create
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/organizations:
+    get:
+      operationId: organizations_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationList'
+          description: ''
+  /api/organizations/:
+    get:
+      operationId: organizations_list_2
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationList'
+          description: ''
+  /api/organizations{id}/:
+    get:
+      operationId: organizations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizations{id}/verify/:
+    post:
+      operationId: organizations_verify_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizations/{id}/:
+    get:
+      operationId: organizations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizations/{id}/verify/:
+    post:
+      operationId: organizations_verify_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizations/nearby/:
+    get:
+      operationId: organizations_nearby_retrieve
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizations/profile/:
+    get:
+      operationId: organizations_profile_retrieve
+      tags:
+      - organizations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    post:
+      operationId: organizations_profile_create
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    patch:
+      operationId: organizations_profile_partial_update
+      tags:
+      - organizations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizationsnearby/:
+    get:
+      operationId: organizationsnearby_retrieve
+      tags:
+      - organizationsnearby
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/organizationsprofile/:
+    get:
+      operationId: organizationsprofile_retrieve
+      tags:
+      - organizationsprofile
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    post:
+      operationId: organizationsprofile_create
+      tags:
+      - organizationsprofile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    patch:
+      operationId: organizationsprofile_partial_update
+      tags:
+      - organizationsprofile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/pickups/:
+    get:
+      operationId: pickups_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - pickups
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPickupTaskList'
+          description: ''
+    post:
+      operationId: pickups_create
+      tags:
+      - pickups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/pickups/{id}/:
+    get:
+      operationId: pickups_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - pickups
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+    patch:
+      operationId: pickups_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - pickups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/pickups/{id}/accept/:
+    post:
+      operationId: pickups_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - pickups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/pickups/{id}/status/:
+    patch:
+      operationId: pickups_status_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - pickups
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/pickups/history/:
+    get:
+      operationId: pickups_history_retrieve
+      tags:
+      - pickups
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/pickups/tasks/:
+    get:
+      operationId: pickups_tasks_retrieve
+      tags:
+      - pickups
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/reviews/:
+    get:
+      operationId: reviews_retrieve
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: reviews_create
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/reviews/donation/{donation_id}/:
+    get:
+      operationId: reviews_donation_retrieve
+      parameters:
+      - in: path
+        name: donation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/reviews/user/{user_id}/:
+    get:
+      operationId: reviews_user_retrieve
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - reviews
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/rewards/badges/:
+    get:
+      operationId: rewards_badges_retrieve
+      tags:
+      - rewards
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/rewards/leaderboard/:
+    get:
+      operationId: rewards_leaderboard_retrieve
+      tags:
+      - rewards
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/rewards/me/:
+    get:
+      operationId: rewards_me_retrieve
+      tags:
+      - rewards
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/tracking/{event_id}/:
+    get:
+      operationId: tracking_retrieve
+      parameters:
+      - in: path
+        name: event_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tracking
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/tracking/donation/{donation_id}/:
+    get:
+      operationId: tracking_donation_retrieve
+      parameters:
+      - in: path
+        name: donation_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tracking
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/tracking/location/:
+    post:
+      operationId: tracking_location_create
+      tags:
+      - tracking
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/users/me:
+    get:
+      operationId: users_me_retrieve
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/volunteers/nearby/:
+    get:
+      operationId: volunteers_nearby_retrieve
+      tags:
+      - volunteers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/volunteers/profile/:
+    get:
+      operationId: volunteers_profile_retrieve
+      tags:
+      - volunteers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolunteerProfile'
+          description: ''
+    put:
+      operationId: volunteers_profile_update
+      tags:
+      - volunteers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VolunteerProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VolunteerProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VolunteerProfile'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolunteerProfile'
+          description: ''
+    patch:
+      operationId: volunteers_profile_partial_update
+      tags:
+      - volunteers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedVolunteerProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedVolunteerProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedVolunteerProfile'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolunteerProfile'
+          description: ''
+  /api/volunteers/tasks/:
+    get:
+      operationId: volunteers_tasks_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - volunteers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPickupTaskList'
+          description: ''
+  /api/volunteers/tasks/{id}/accept/:
+    post:
+      operationId: volunteers_tasks_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - volunteers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/volunteers/tasks/{id}/status/:
+    patch:
+      operationId: volunteers_tasks_status_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - volunteers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPickupTask'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+  /api/volunteers/tasks/history/:
+    get:
+      operationId: volunteers_tasks_history_retrieve
+      tags:
+      - volunteers
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickupTask'
+          description: ''
+components:
+  schemas:
+    CategoryEnum:
+      enum:
+      - VEG
+      - NON_VEG
+      - VEGAN
+      - DESSERTS
+      - BAKERY
+      - BEVERAGES
+      - FRUITS
+      - PACKED_FOOD
+      type: string
+      description: |-
+        * `VEG` - Veg
+        * `NON_VEG` - Non-Veg
+        * `VEGAN` - Vegan
+        * `DESSERTS` - Desserts
+        * `BAKERY` - Bakery
+        * `BEVERAGES` - Beverages
+        * `FRUITS` - Fruits
+        * `PACKED_FOOD` - Packed Food
+    Donation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        donor:
+          type: string
+          format: uuid
+          readOnly: true
+        donor_name:
+          type: string
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        food_name:
+          type: string
+          maxLength: 200
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        food_type:
+          type: string
+          maxLength: 100
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        quantity_unit:
+          type: string
+          maxLength: 30
+        people_served:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        prepared_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        pickup_address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        special_instructions:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DonationStatusEnum'
+          readOnly: true
+        food_safety:
+          $ref: '#/components/schemas/FoodSafetyChecklist'
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+          writeOnly: true
+        image_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/DonationImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - created_at
+      - donor
+      - donor_name
+      - expires_at
+      - food_name
+      - food_safety
+      - food_type
+      - id
+      - image_details
+      - organization
+      - prepared_at
+      - quantity
+      - status
+      - updated_at
+    DonationImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+        alt_text:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - alt_text
+      - created_at
+      - id
+      - url
+    DonationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        donation:
+          type: string
+          format: uuid
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DonationRequestStatusEnum'
+          readOnly: true
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - donation
+      - id
+      - organization
+      - organization_name
+      - status
+      - updated_at
+    DonationRequestStatusEnum:
+      enum:
+      - PENDING
+      - ACCEPTED
+      - REJECTED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `ACCEPTED` - Accepted
+        * `REJECTED` - Rejected
+    DonationStatusEnum:
+      enum:
+      - PENDING
+      - ACCEPTED
+      - COMPLETED
+      - CANCELLED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `ACCEPTED` - Accepted
+        * `COMPLETED` - Completed
+        * `CANCELLED` - Cancelled
+    FoodSafetyChecklist:
+      type: object
+      properties:
+        freshly_prepared:
+          type: boolean
+        properly_packed:
+          type: boolean
+        expiry_marked:
+          type: boolean
+        food_type_marked:
+          type: boolean
+        allergens:
+          type: string
+          maxLength: 500
+      required:
+      - expiry_marked
+      - food_type_marked
+      - freshly_prepared
+      - properly_packed
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        registration_document:
+          type: string
+          format: uri
+          nullable: true
+        phone:
+          type: string
+          maxLength: 25
+        website:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        food_preferences: {}
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        current_demand:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+        response_time_minutes:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        type:
+          type: string
+          readOnly: true
+        verified:
+          type: boolean
+          readOnly: true
+        bio:
+          type: string
+          readOnly: true
+        location:
+          type: string
+          readOnly: true
+      required:
+      - bio
+      - created_at
+      - id
+      - location
+      - name
+      - response_time_minutes
+      - type
+      - updated_at
+      - user_id
+      - verification_status
+      - verified
+    PaginatedDonationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Donation'
+    PaginatedDonationRequestList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DonationRequest'
+    PaginatedOrganizationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+    PaginatedPickupTaskList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PickupTask'
+    PatchedDonation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        donor:
+          type: string
+          format: uuid
+          readOnly: true
+        donor_name:
+          type: string
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        food_name:
+          type: string
+          maxLength: 200
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        food_type:
+          type: string
+          maxLength: 100
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        quantity_unit:
+          type: string
+          maxLength: 30
+        people_served:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        prepared_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        pickup_address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        special_instructions:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DonationStatusEnum'
+          readOnly: true
+        food_safety:
+          $ref: '#/components/schemas/FoodSafetyChecklist'
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+          writeOnly: true
+        image_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/DonationImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        registration_document:
+          type: string
+          format: uri
+          nullable: true
+        phone:
+          type: string
+          maxLength: 25
+        website:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        food_preferences: {}
+        capacity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        current_demand:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+        response_time_minutes:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        type:
+          type: string
+          readOnly: true
+        verified:
+          type: boolean
+          readOnly: true
+        bio:
+          type: string
+          readOnly: true
+        location:
+          type: string
+          readOnly: true
+    PatchedPickupTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        donation:
+          type: string
+          format: uuid
+          readOnly: true
+        donation_name:
+          type: string
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+        volunteer:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        volunteer_name:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PickupTaskStatusEnum'
+          readOnly: true
+        notes:
+          type: string
+          readOnly: true
+        pickup_address:
+          type: string
+          readOnly: true
+        pickup_latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        pickup_longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        delivery_address:
+          type: string
+          readOnly: true
+        delivery_latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        delivery_longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        estimated_arrival:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        assigned_at:
+          type: string
+          format: date-time
+          readOnly: true
+        accepted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        profile_image:
+          type: string
+          format: uri
+          nullable: true
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedVolunteerProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        is_available:
+          type: boolean
+        service_radius_km:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        points:
+          type: integer
+          readOnly: true
+        completed_deliveries:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PickupTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        donation:
+          type: string
+          format: uuid
+          readOnly: true
+        donation_name:
+          type: string
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+        volunteer:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        volunteer_name:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PickupTaskStatusEnum'
+          readOnly: true
+        notes:
+          type: string
+          readOnly: true
+        pickup_address:
+          type: string
+          readOnly: true
+        pickup_latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        pickup_longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        delivery_address:
+          type: string
+          readOnly: true
+        delivery_latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        delivery_longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        estimated_arrival:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        assigned_at:
+          type: string
+          format: date-time
+          readOnly: true
+        accepted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - accepted_at
+      - assigned_at
+      - completed_at
+      - delivery_address
+      - delivery_latitude
+      - delivery_longitude
+      - donation
+      - donation_name
+      - estimated_arrival
+      - id
+      - notes
+      - organization
+      - pickup_address
+      - pickup_latitude
+      - pickup_longitude
+      - status
+      - updated_at
+      - volunteer
+      - volunteer_name
+    PickupTaskStatusEnum:
+      enum:
+      - ASSIGNED
+      - ACCEPTED
+      - PICKUP_STARTED
+      - PICKED_UP
+      - IN_TRANSIT
+      - DELIVERED
+      - CANCELLED
+      type: string
+      description: |-
+        * `ASSIGNED` - Assigned
+        * `ACCEPTED` - Accepted
+        * `PICKUP_STARTED` - Pickup started
+        * `PICKED_UP` - Picked up
+        * `IN_TRANSIT` - In transit
+        * `DELIVERED` - Delivered
+        * `CANCELLED` - Cancelled
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        profile_image:
+          type: string
+          format: uri
+          nullable: true
+        address:
+          type: string
+          maxLength: 255
+        latitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        longitude:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - id
+      - is_verified
+      - name
+      - role
+      - updated_at
+    Register:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        role:
+          type: string
+          default: DONOR
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - email
+      - name
+      - password
+    RoleEnum:
+      enum:
+      - DONOR
+      - NGO
+      - VOLUNTEER
+      - ADMIN
+      type: string
+      description: |-
+        * `DONOR` - Donor
+        * `NGO` - NGO
+        * `VOLUNTEER` - Volunteer
+        * `ADMIN` - Admin
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 20
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        profile_image:
+          type: string
+          format: uri
+          nullable: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - id
+      - is_verified
+      - name
+      - updated_at
+    VerificationStatusEnum:
+      enum:
+      - PENDING
+      - VERIFIED
+      - REJECTED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `VERIFIED` - Verified
+        * `REJECTED` - Rejected
+    VolunteerProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        is_available:
+          type: boolean
+        service_radius_km:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        points:
+          type: integer
+          readOnly: true
+        completed_deliveries:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - completed_deliveries
+      - created_at
+      - id
+      - points
+      - updated_at
+      - user
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

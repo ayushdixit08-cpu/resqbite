@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.views import APIView
+from common.views import ResQBiteAPIView as APIView
 
 from accounts.models import User
 from common.pagination import ResQBitePagination

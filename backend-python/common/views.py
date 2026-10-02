@@ -1,8 +1,14 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .serializers import APIResponseSerializer
 
-class HealthView(APIView):
+
+class ResQBiteAPIView(APIView):
+    serializer_class = APIResponseSerializer
+
+
+class HealthView(ResQBiteAPIView):
     authentication_classes = []
     permission_classes = []
 
