@@ -24,7 +24,7 @@ class PickupTaskViewSet(ModelViewSet):
         user = self.request.user
         queryset = PickupTask.objects.select_related("donation", "organization", "volunteer")
         if user.role == User.ROLE_VOLUNTEER:
-            if self.action == "list":
+            if self.action in {"list", "accept"}:
                 return queryset.filter(volunteer__isnull=True, status=PickupTask.STATUS_ASSIGNED) | queryset.filter(volunteer=user)
             return queryset.filter(volunteer=user)
         if user.role == User.ROLE_DONOR:

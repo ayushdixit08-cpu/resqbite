@@ -33,6 +33,8 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_role(self, value):
         allowed = {User.ROLE_DONOR, User.ROLE_NGO, User.ROLE_VOLUNTEER}
         normalized = str(value).upper()
+        if normalized in {"ORG", "ORGANIZATION"}:
+            normalized = User.ROLE_NGO
         if normalized not in allowed:
             raise serializers.ValidationError("Role must be DONOR, NGO, or VOLUNTEER.")
         return normalized

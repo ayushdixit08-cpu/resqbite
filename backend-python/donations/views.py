@@ -233,7 +233,8 @@ class DonationRequestViewSet(ModelViewSet):
         if donation.status != Donation.STATUS_PENDING or donation.expires_at <= timezone.now():
             raise ValidationError({"donation": "This donation is no longer available."})
         try:
-            request_obj = serializer.save(organization=organization)
+            with transaction.atomic():
+                request_obj = serializer.save(organization=organization)
         except IntegrityError as exc:
             raise ValidationError({"donation": "Your organization already requested this donation."}) from exc
         return success_response(self.get_serializer(request_obj).data, "Donation request submitted.", status.HTTP_201_CREATED)

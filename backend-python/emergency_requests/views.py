@@ -62,11 +62,18 @@ class EmergencyRequestDetailView(APIView):
         obj = self._get(request, request_id)
         if obj is None:
             return Response({"detail": "Emergency request not found."}, status=status.HTTP_404_NOT_FOUND)
-        if "status" in request.data and request.user.role != User.ROLE_ADMIN:
+        requested_status = request.data.get("status")
+        if requested_status and request.user.role != User.ROLE_ADMIN:
             raise PermissionDenied("Only administrators may change request status.")
         serializer = EmergencyFoodRequestSerializer(obj, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         obj = serializer.save()
+        if requested_status:
+            allowed_statuses = {choice for choice, _ in EmergencyFoodRequest.STATUS_CHOICES}
+            if requested_status not in allowed_statuses:
+                raise ValidationError({"status": "Invalid emergency request status."})
+            obj.status = requested_status
+            obj.save(update_fields=["status", "updated_at"])
         matches = Donation.objects.filter(
             status=Donation.STATUS_PENDING,
             expires_at__gt=timezone.now(),
