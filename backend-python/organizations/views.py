@@ -1,3 +1,10 @@
-from django.shortcuts import render
+from rest_framework import permissions, viewsets
 
-# Create your views here.
+from .models import Organization
+from .serializers import OrganizationSerializer
+
+
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all().order_by("-created_at")
+    serializer_class = OrganizationSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
