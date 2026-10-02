@@ -20,8 +20,8 @@ import { mockTracking, mockDeliveryTasks, mockFoodDonations, mockAvailableFood }
 
 /* ============================================================
    BACKEND API CLIENT
-   Talks to the ResQBite REST API (Node.js + Express + Prisma +
-   PostgreSQL — see the downloadable backend project). Point
+   Talks to the ResQBite REST API (Django REST Framework + PostgreSQL).
+   Point
    RESQBITE_API_URL at your deployed backend to go live; until
    then, calls fail quietly and the UI falls back to sample data.
 ============================================================= */
@@ -64,11 +64,19 @@ async function apiRequest(path, options = {}) {
   if (cacheable && apiResultCache.has(path)) return apiResultCache.get(path);
   if (cacheable && apiInFlight.has(path)) return apiInFlight.get(path);
   const promise = (async () => {
-    const res = await fetch(`${RESQBITE_API_URL}${path}`, options);
+    const token = getAuthToken();
+    const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+    const headers = {
+      ...(!isMultipart ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
+    const res = await fetch(`${RESQBITE_API_URL}${path}`, { ...options, headers });
     if (!res.ok) throw new Error(`API request failed: ${res.status} ${res.statusText}`);
     const data = await res.json();
-    if (cacheable) apiResultCache.set(path, data);
-    return data;
+    const normalized = data?.success === true && Object.hasOwn(data, "data") ? data.data : data;
+    if (cacheable) apiResultCache.set(path, normalized);
+    return normalized;
   })();
   if (cacheable) apiInFlight.set(path, promise);
   try {
@@ -81,8 +89,9 @@ async function apiRequest(path, options = {}) {
 // Authenticated request with JWT token - bypasses cache for live data
 async function authenticatedRequest(path, options = {}) {
   const token = getAuthToken();
+  const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers = {
-    "Content-Type": "application/json",
+    ...(!isMultipart ? { "Content-Type": "application/json" } : {}),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -103,7 +112,8 @@ async function authenticatedRequest(path, options = {}) {
     throw new Error(`API request failed: ${res.status} ${res.statusText}`);
   }
   
-  return await res.json();
+  const data = await res.json();
+  return data?.success === true && Object.hasOwn(data, "data") ? data.data : data;
 }
 
 // Synchronous read for a path already resolved this session — lets a page
@@ -119,8 +129,24 @@ const api = {
   analyticsFoodMix: () => apiRequest("/analytics/food-mix"),
   analyticsStatusBreakdown: () => apiRequest("/analytics/status-breakdown"),
   analyticsTopNgos: (limit = 5) => apiRequest(`/analytics/top-ngos?limit=${limit}`),
-  donationTracking: (id) => authenticatedRequest(`/donations/${id}`),
-  organizations: () => apiRequest("/organizations"),
+  donationTracking: async (id) => {
+    const result = await authenticatedRequest(`/tracking/donation/${id}/`);
+    return {
+      donation: { id: result.donation_id, status: result.status },
+      timeline: result.events || [],
+    };
+  },
+  organizations: async () => {
+    const response = await apiRequest("/organizations/");
+    const rows = Array.isArray(response) ? response : response?.results || response?.organizations || [];
+    return {
+      organizations: rows.map((organization) => ({
+        ...organization,
+        type: organization.type || "NGO",
+        verified: organization.verified ?? organization.verification_status === "VERIFIED",
+      })),
+    };
+  },
 };
 
 /* ============================================================

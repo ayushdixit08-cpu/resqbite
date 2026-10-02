@@ -8,11 +8,20 @@ from .views import (
     AdminReportsView,
     AdminUserListView,
     AnalyticsOverviewView,
+    AnalyticsFoodMixView,
+    AnalyticsStatusBreakdownView,
+    AnalyticsWeeklyView,
+    AnalyticsTopOrganizationsView,
+    DashboardView,
     EnvironmentalImpactView,
 )
 
 urlpatterns = [
     path("overview/", AnalyticsOverviewView.as_view(), name="analytics-overview"),
+    path("top-ngos/", AnalyticsTopOrganizationsView.as_view(), name="analytics-top-ngos"),
+    path("weekly/", AnalyticsWeeklyView.as_view(), name="analytics-weekly"),
+    path("food-mix/", AnalyticsFoodMixView.as_view(), name="analytics-food-mix"),
+    path("status-breakdown/", AnalyticsStatusBreakdownView.as_view(), name="analytics-status-breakdown"),
     path("impact/", EnvironmentalImpactView.as_view(), name="environmental-impact"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
     path("admin/users/", AdminUserListView.as_view(), name="admin-users"),

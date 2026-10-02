@@ -2,9 +2,11 @@ from django.shortcuts import render
 
 # Create your views here.
 import os
+from datetime import timedelta
 
 from django.db.models import Count, Sum
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncDate, TruncMonth
+from django.utils import timezone
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
@@ -18,11 +20,33 @@ from volunteers.models import VolunteerProfile
 from common.services import haversine_km
 
 
+def weekly_meal_totals(donations, days=7):
+    start = timezone.now() - timedelta(days=days - 1)
+    rows = (
+        donations.filter(status=Donation.STATUS_COMPLETED, updated_at__date__gte=start.date())
+        .annotate(day=TruncDate("updated_at"))
+        .values("day")
+        .annotate(meals=Sum("people_served"))
+        .order_by("day")
+    )
+    values = {row["day"]: row["meals"] for row in rows}
+    return [
+        {
+            "d": (start.date() + timedelta(days=index)).strftime("%a"),
+            "date": (start.date() + timedelta(days=index)).isoformat(),
+            "meals": values.get(start.date() + timedelta(days=index), 0),
+        }
+        for index in range(days)
+    ]
+
+
 class AnalyticsOverviewView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        user = request.user
+        user = request.user if request.user.is_authenticated else None
+        if user is None:
+            return success_response(self._admin_metrics())
         if user.role == User.ROLE_DONOR:
             donations = Donation.objects.filter(donor=user)
             data = {
@@ -101,6 +125,97 @@ class EnvironmentalImpactView(APIView):
             "water_saved_liters": round(quantity_kg * water_factor, 2),
             "factors": {"co2_kg_per_kg_food": kg_factor, "water_liters_per_kg_food": water_factor},
         })
+
+
+class AnalyticsWeeklyView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get("days", 7))
+            if days < 1 or days > 90:
+                raise ValueError
+        except ValueError as exc:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"days": "Days must be between 1 and 90."}) from exc
+        return success_response({"weekly": weekly_meal_totals(Donation.objects.all(), days)})
+
+
+class AnalyticsFoodMixView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        rows = (
+            Donation.objects.filter(status=Donation.STATUS_COMPLETED)
+            .values("category")
+            .annotate(value=Sum("people_served"))
+            .order_by("-value")
+        )
+        return success_response({"foodMix": [{"name": row["category"], "value": row["value"]} for row in rows]})
+
+
+class AnalyticsStatusBreakdownView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        donations = Donation.objects.all()
+        if request.user.role == User.ROLE_DONOR:
+            donations = donations.filter(donor=request.user)
+        elif request.user.role == User.ROLE_NGO:
+            donations = donations.filter(organization__user=request.user)
+        elif request.user.role not in {User.ROLE_ADMIN, User.ROLE_VOLUNTEER}:
+            raise PermissionDenied()
+        values = list(donations.values("status").annotate(value=Count("id")).order_by("status"))
+        return success_response({"statusBreakdown": values})
+
+
+class DashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role == User.ROLE_DONOR:
+            donations = Donation.objects.filter(donor=request.user)
+        elif request.user.role == User.ROLE_NGO:
+            donations = Donation.objects.filter(organization__user=request.user)
+        elif request.user.role == User.ROLE_VOLUNTEER:
+            task_donations = PickupTask.objects.filter(volunteer=request.user).values("donation_id")
+            donations = Donation.objects.filter(id__in=task_donations)
+        elif request.user.role == User.ROLE_ADMIN:
+            donations = Donation.objects.all()
+        else:
+            raise PermissionDenied()
+        total = donations.count()
+        completed = donations.filter(status=Donation.STATUS_COMPLETED)
+        stats = {
+            "activeDonations": donations.filter(status__in=["PENDING", "ACCEPTED"]).count(),
+            "inTransit": PickupTask.objects.filter(donation__in=donations, status="IN_TRANSIT").count(),
+            "mealsDonated": completed.aggregate(total=Sum("people_served"))["total"] or 0,
+            "deliveredDonations": completed.count(),
+            "totalDonations": total,
+        }
+        return success_response({"stats": stats, "weeklyMeals": weekly_meal_totals(donations, 7)})
+
+
+class AnalyticsTopOrganizationsView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get("limit", 5))
+            if not 1 <= limit <= 50:
+                raise ValueError
+        except ValueError as exc:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"limit": "Limit must be between 1 and 50."}) from exc
+        rows = (
+            Donation.objects.filter(status=Donation.STATUS_COMPLETED, organization__isnull=False)
+            .values("organization_id", "organization__name")
+            .annotate(meals=Sum("people_served"), donations=Count("id"))
+            .order_by("-meals")[:limit]
+        )
+        return success_response({"topNgos": list(rows)})
 
 
 class AdminDashboardView(APIView):
