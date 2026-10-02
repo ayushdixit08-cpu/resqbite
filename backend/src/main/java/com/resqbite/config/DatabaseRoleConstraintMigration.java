@@ -60,9 +60,10 @@ public class DatabaseRoleConstraintMigration {
         jdbcTemplate.update("""
                 UPDATE users
                 SET role = CASE
-                    WHEN UPPER(role) IN ('NGO', 'ORG', 'ORGANIZATION') THEN 'ORGANIZATION'
+                    WHEN UPPER(role) IN ('NGO', 'ORG', 'ORGANIZATION') THEN 'NGO'
                     WHEN UPPER(role) = 'DONOR' THEN 'DONOR'
                     WHEN UPPER(role) = 'VOLUNTEER' THEN 'VOLUNTEER'
+                    WHEN UPPER(role) = 'ADMIN' THEN 'ADMIN'
                     ELSE role
                 END
                 """);
@@ -70,7 +71,7 @@ public class DatabaseRoleConstraintMigration {
         jdbcTemplate.execute("""
                 ALTER TABLE users
                 ADD CONSTRAINT users_role_check
-                CHECK (role IN ('ORGANIZATION', 'DONOR', 'VOLUNTEER'))
+                CHECK (role IN ('NGO', 'ORGANIZATION', 'DONOR', 'VOLUNTEER', 'ADMIN'))
                 """);
     }
 }

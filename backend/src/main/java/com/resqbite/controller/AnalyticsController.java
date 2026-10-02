@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -25,7 +26,7 @@ public class AnalyticsController {
     public ResponseEntity<Map<String, Object>> overview() {
         Map<String, Object> payload = new HashMap<>();
         long activeVolunteers = userRepository.countByRole(User.UserType.VOLUNTEER);
-        long activeNgos = userRepository.countByRole(User.UserType.ORGANIZATION);
+        long activeNgos = userRepository.countByRoleIn(Set.of(User.UserType.NGO, User.UserType.ORGANIZATION));
         payload.put("totalVolunteers", activeVolunteers);
         payload.put("totalNgos", activeNgos);
         payload.put("activeConnections", 0);
@@ -37,7 +38,7 @@ public class AnalyticsController {
     @GetMapping("/analytics/top-ngos")
     public ResponseEntity<Map<String, Object>> topNgos() {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("ngos", userRepository.findTop5ByRoleOrderByIdAsc(User.UserType.ORGANIZATION));
+        payload.put("ngos", userRepository.findTop5ByRoleInOrderByIdAsc(Set.of(User.UserType.NGO, User.UserType.ORGANIZATION)));
         return ResponseEntity.ok(payload);
     }
 

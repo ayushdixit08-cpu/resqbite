@@ -9,6 +9,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api")
@@ -33,7 +34,7 @@ public class DonationController {
     @PostMapping("/donations")
     public ResponseEntity<Map<String, Object>> create(@AuthenticationPrincipal User user,
                                                        @RequestBody Map<String, Object> body) {
-        User recipient = users.findFirstByRole(User.UserType.ORGANIZATION)
+        User recipient = users.findFirstByRoleIn(Set.of(User.UserType.NGO, User.UserType.ORGANIZATION))
                 .orElseThrow(() -> new IllegalArgumentException("No recipient organization is available"));
         String title = stringValue(body, "title", "food", "activityTitle");
         String message = stringValue(body, "message", "description");
@@ -86,7 +87,7 @@ public class DonationController {
     @PostMapping("/donations/{id}/claim")
     public ResponseEntity<Map<String, Object>> claim(@PathVariable Long id,
                                                       @AuthenticationPrincipal User user) {
-        if (user == null || user.getRole() != User.UserType.ORGANIZATION) {
+        if (user == null || !user.isOrganization()) {
             return ResponseEntity.status(403).build();
         }
         Request donation = donation(id);

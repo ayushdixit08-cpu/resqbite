@@ -82,7 +82,7 @@ public class ConnectionController {
     }
 
     @PostMapping("/api/opportunities")
-    @PreAuthorize("hasRole('ORGANIZATION')")
+    @PreAuthorize("hasAnyRole('ORGANIZATION', 'NGO')")
     public ResponseEntity<OpportunityDto> createOpportunity(@AuthenticationPrincipal User currentUser,
                                                           @RequestBody OpportunityRequest request) {
         return ResponseEntity.ok(connectionService.createOpportunity(currentUser.getId(), request));

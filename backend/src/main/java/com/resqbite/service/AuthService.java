@@ -67,16 +67,9 @@ public class AuthService {
             throw new IllegalArgumentException("Email already in use");
         }
 
-        final User.UserType role;
-        try {
-            String rawRole = request.role().trim().toUpperCase(Locale.ROOT);
-            String normalizedRole = switch (rawRole) {
-                case "NGO", "ORG" -> "ORGANIZATION";
-                default -> rawRole;
-            };
-            role = User.UserType.valueOf(normalizedRole);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Role must be volunteer, organization, or donor");
+        final User.UserType role = User.normalizeRole(request.role());
+        if (role == null) {
+            throw new IllegalArgumentException("Role must be volunteer, ngo, organization, donor, or admin");
         }
         User user = new User(
                 request.name(),
@@ -92,7 +85,7 @@ public class AuthService {
 
         if (role == User.UserType.VOLUNTEER) {
             volunteerRepository.save(new Volunteer(user, "Flexible", request.interests(), request.skills()));
-        } else if (role == User.UserType.ORGANIZATION) {
+        } else if (role == User.UserType.NGO || role == User.UserType.ORGANIZATION) {
             ngoRepository.save(new Ngo(user, request.bio(), request.location(), "Open for collaboration", ""));
         }
 

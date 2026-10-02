@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 public class DiscoverController {
@@ -29,7 +30,7 @@ public class DiscoverController {
 
     @GetMapping("/api/organizations")
     public ResponseEntity<List<UserDto>> organizations() {
-        List<User> ngos = userRepository.findByRole(User.UserType.ORGANIZATION);
+        List<User> ngos = userRepository.findByRoleIn(Set.of(User.UserType.NGO, User.UserType.ORGANIZATION));
         return ResponseEntity.ok(ngos.stream().map(UserDto::from).toList());
     }
 

@@ -10,6 +10,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.time.Instant;
 
 @Entity
@@ -128,9 +129,34 @@ public class User implements UserDetails {
 
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
+    public boolean isOrganization() {
+        return role == UserType.NGO || role == UserType.ORGANIZATION;
+    }
+
+    public boolean isAdmin() {
+        return role == UserType.ADMIN;
+    }
+
     public enum UserType {
         VOLUNTEER,
-        ORGANIZATION,
-        DONOR
+        DONOR,
+        NGO,
+        ADMIN,
+        ORGANIZATION
+    }
+
+    public static UserType normalizeRole(String rawRole) {
+        if (rawRole == null) {
+            return null;
+        }
+
+        String normalized = rawRole.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "NGO", "ORG", "ORGANIZATION" -> UserType.NGO;
+            case "VOLUNTEER" -> UserType.VOLUNTEER;
+            case "DONOR" -> UserType.DONOR;
+            case "ADMIN" -> UserType.ADMIN;
+            default -> null;
+        };
     }
 }

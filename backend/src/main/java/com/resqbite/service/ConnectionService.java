@@ -39,7 +39,7 @@ public class ConnectionService {
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new IllegalArgumentException("Sender not found"));
         User recipient = request.recipientId() == null
-                ? userRepository.findFirstByRole(User.UserType.ORGANIZATION)
+                ? userRepository.findFirstByRoleIn(java.util.Set.of(User.UserType.NGO, User.UserType.ORGANIZATION))
                 .orElseThrow(() -> new IllegalArgumentException("No recipient organization is available"))
                 : userRepository.findById(request.recipientId())
                 .orElseThrow(() -> new IllegalArgumentException("Recipient not found"));
@@ -184,7 +184,7 @@ public class ConnectionService {
     public OpportunityDto createOpportunity(Long ngoId, OpportunityRequest request) {
         User ngo = userRepository.findById(ngoId)
                 .orElseThrow(() -> new IllegalArgumentException("NGO not found"));
-        if (ngo.getRole() != User.UserType.ORGANIZATION) {
+        if (!ngo.isOrganization()) {
             throw new IllegalArgumentException("Only organizations can create opportunities");
         }
         Opportunity opportunity = new Opportunity(
