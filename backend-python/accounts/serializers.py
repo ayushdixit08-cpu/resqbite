@@ -30,9 +30,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_role(self, value):
         allowed = {User.ROLE_DONOR, User.ROLE_NGO, User.ROLE_VOLUNTEER, User.ROLE_ADMIN}
-        if value.upper() not in allowed:
+        if value is None:
+            raise serializers.ValidationError("Role is required.")
+        normalized = str(value).upper()
+        if normalized not in allowed:
             raise serializers.ValidationError("Role must be DONOR, NGO, VOLUNTEER, or ADMIN.")
-        return value.upper()
+        return normalized
 
     def create(self, validated_data):
         password = validated_data.pop("password")
@@ -44,7 +47,7 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        user = authenticate(username=attrs["email"], password=attrs["password"])
+        user = authenticate(email=attrs["email"], password=attrs["password"])
         if not user:
             raise serializers.ValidationError("Invalid email or password.")
         return {"user": user}
