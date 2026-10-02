@@ -13,16 +13,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: admin_complaints_create
       tags:
       - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/complaints/{complaint_id}/:
     patch:
       operationId: admin_complaints_partial_update
@@ -35,11 +55,26 @@ paths:
         required: true
       tags:
       - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/complaints/fraud-alerts/:
     get:
       operationId: admin_complaints_fraud_alerts_retrieve
@@ -49,7 +84,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/dashboard/:
     get:
       operationId: admin_dashboard_retrieve
@@ -59,7 +98,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/deliveries/:
     get:
       operationId: admin_deliveries_retrieve
@@ -69,7 +112,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/donations/:
     get:
       operationId: admin_donations_retrieve
@@ -79,7 +126,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/ngos/:
     get:
       operationId: admin_ngos_retrieve
@@ -137,7 +188,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/users/:
     get:
       operationId: admin_users_retrieve
@@ -147,7 +202,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/admin/users/{user_id}/deactivate/:
     post:
       operationId: admin_users_deactivate_create
@@ -160,11 +219,27 @@ paths:
         required: true
       tags:
       - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ai/chat/:
     get:
       operationId: ai_chat_retrieve
@@ -174,16 +249,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: ai_chat_create
       tags:
       - ai
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ai/expiry-prediction/:
     get:
       operationId: ai_expiry_prediction_retrieve
@@ -193,16 +288,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: ai_expiry_prediction_create
       tags:
       - ai
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ai/food-quality/:
     get:
       operationId: ai_food_quality_retrieve
@@ -212,16 +327,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: ai_food_quality_create
       tags:
       - ai
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ai/meal-estimation/:
     get:
       operationId: ai_meal_estimation_retrieve
@@ -231,16 +366,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: ai_meal_estimation_create
       tags:
       - ai
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ai/ngo-recommendation/:
     get:
       operationId: ai_ngo_recommendation_retrieve
@@ -250,16 +405,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: ai_ngo_recommendation_create
       tags:
       - ai
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/dashboard/:
     get:
       operationId: analytics_admin_dashboard_retrieve
@@ -269,7 +444,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/deliveries/:
     get:
       operationId: analytics_admin_deliveries_retrieve
@@ -279,7 +458,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/donations/:
     get:
       operationId: analytics_admin_donations_retrieve
@@ -289,7 +472,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/reports/:
     get:
       operationId: analytics_admin_reports_retrieve
@@ -299,7 +486,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/users/:
     get:
       operationId: analytics_admin_users_retrieve
@@ -309,7 +500,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/admin/users/{user_id}/deactivate/:
     post:
       operationId: analytics_admin_users_deactivate_create
@@ -322,11 +517,27 @@ paths:
         required: true
       tags:
       - analytics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/food-mix/:
     get:
       operationId: analytics_food_mix_retrieve
@@ -337,7 +548,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/impact/:
     get:
       operationId: analytics_impact_retrieve
@@ -347,7 +562,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/overview:
     get:
       operationId: analytics_overview_retrieve
@@ -358,7 +577,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/overview/:
     get:
       operationId: analytics_overview_retrieve_2
@@ -369,7 +592,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/status-breakdown/:
     get:
       operationId: analytics_status_breakdown_retrieve
@@ -379,7 +606,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/top-ngos/:
     get:
       operationId: analytics_top_ngos_retrieve
@@ -390,7 +621,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/analytics/weekly/:
     get:
       operationId: analytics_weekly_retrieve
@@ -401,92 +636,224 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/email-verification/:
     post:
       operationId: auth_email_verification_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/email-verification/confirm/:
     post:
       operationId: auth_email_verification_confirm_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/forgot-password:
     post:
       operationId: auth_forgot_password_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/google:
     post:
       operationId: auth_google_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/login:
     post:
       operationId: auth_login_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/login/:
     post:
       operationId: auth_login_create_2
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/logout:
     post:
       operationId: auth_logout_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/logout/:
     post:
       operationId: auth_logout_create_2
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/me:
     get:
       operationId: auth_me_retrieve
@@ -496,7 +863,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve_2
@@ -506,29 +877,65 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/password-reset/:
     post:
       operationId: auth_password_reset_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/password-reset/confirm/:
     post:
       operationId: auth_password_reset_confirm_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/profile:
     get:
       operationId: auth_profile_retrieve
@@ -714,12 +1121,28 @@ paths:
       operationId: auth_reset_password_create
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/auth/token/refresh/:
     post:
       operationId: auth_token_refresh_create
@@ -758,16 +1181,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: complaints_create
       tags:
       - complaints
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/complaints/{complaint_id}/:
     patch:
       operationId: complaints_partial_update
@@ -780,11 +1223,26 @@ paths:
         required: true
       tags:
       - complaints
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/complaints/fraud-alerts/:
     get:
       operationId: complaints_fraud_alerts_retrieve
@@ -794,7 +1252,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/dashboard:
     get:
       operationId: dashboard_retrieve
@@ -804,7 +1266,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/donations:
     get:
       operationId: donations_list
@@ -1299,21 +1765,53 @@ paths:
         required: true
       tags:
       - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/donations/qr/verify/:
     post:
       operationId: donations_qr_verify_create
       tags:
       - donations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/donations/requests/:
     get:
       operationId: donations_requests_list
@@ -1521,21 +2019,53 @@ paths:
         required: true
       tags:
       - donationsqr
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/donationsqr/verify/:
     post:
       operationId: donationsqr_verify_create
       tags:
       - donationsqr
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/donationsrequests/:
     get:
       operationId: donationsrequests_list
@@ -1698,16 +2228,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: emergency_requests_create
       tags:
       - emergency-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/emergency-requests/{request_id}/:
     get:
       operationId: emergency_requests_retrieve_2
@@ -1724,7 +2274,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     patch:
       operationId: emergency_requests_partial_update
       parameters:
@@ -1736,11 +2290,26 @@ paths:
         required: true
       tags:
       - emergency-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/events/:
     get:
       operationId: events_retrieve
@@ -1750,16 +2319,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: events_create
       tags:
       - events
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/events/{event_id}/:
     patch:
       operationId: events_partial_update
@@ -1772,11 +2361,26 @@ paths:
         required: true
       tags:
       - events
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/health/:
     get:
       operationId: health_retrieve
@@ -1784,7 +2388,11 @@ paths:
       - health
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/ngos/:
     get:
       operationId: ngos_list
@@ -1957,7 +2565,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/notifications/{notification_id}/read/:
     patch:
       operationId: notifications_read_partial_update
@@ -1970,21 +2582,52 @@ paths:
         required: true
       tags:
       - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAPIResponse'
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/notifications/read-all/:
     post:
       operationId: notifications_read_all_create
       tags:
       - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/organizations:
     get:
       operationId: organizations_list
@@ -2511,16 +3154,36 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
     post:
       operationId: reviews_create
       tags:
       - reviews
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/reviews/donation/{donation_id}/:
     get:
       operationId: reviews_donation_retrieve
@@ -2537,7 +3200,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/reviews/user/{user_id}/:
     get:
       operationId: reviews_user_retrieve
@@ -2554,7 +3221,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/rewards/badges/:
     get:
       operationId: rewards_badges_retrieve
@@ -2601,7 +3272,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/tracking/donation/{donation_id}/:
     get:
       operationId: tracking_donation_retrieve
@@ -2618,17 +3293,37 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/tracking/location/:
     post:
       operationId: tracking_location_create
       tags:
       - tracking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/APIResponse'
+        required: true
       security:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/users/me:
     get:
       operationId: users_me_retrieve
@@ -2638,7 +3333,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/volunteers/nearby/:
     get:
       operationId: volunteers_nearby_retrieve
@@ -2648,7 +3347,11 @@ paths:
       - jwtAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+          description: ''
   /api/volunteers/profile/:
     get:
       operationId: volunteers_profile_retrieve
@@ -2818,6 +3521,19 @@ paths:
           description: ''
 components:
   schemas:
+    APIResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data: {}
+        errors:
+          nullable: true
+      required:
+      - message
+      - success
     CategoryEnum:
       enum:
       - VEG
@@ -3227,6 +3943,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PickupTask'
+    PatchedAPIResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data: {}
+        errors:
+          nullable: true
     PatchedDonation:
       type: object
       properties:

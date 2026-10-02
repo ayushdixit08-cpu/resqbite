@@ -1,7 +1,7 @@
 from django.db.models import Sum
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.views import APIView
+from common.views import ResQBiteAPIView as APIView
 
 from common.responses import success_response
 
