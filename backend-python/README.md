@@ -30,8 +30,12 @@ python manage.py check
 python manage.py makemigrations
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py runserver 0.0.0.0:5000
+python manage.py runserver 127.0.0.1:8000
 ```
+
+During local development, `frontend/.env.development` points the Vite app at
+`http://127.0.0.1:8000/api`. Django's default CORS origins allow both
+`http://localhost:5173` and `http://127.0.0.1:5173`.
 
 Do not commit `.env` or production secrets. Use a real SMTP provider in production; the example configuration prints verification and password-reset emails to the console.
 
