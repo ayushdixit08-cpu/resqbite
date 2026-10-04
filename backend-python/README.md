@@ -21,9 +21,10 @@ Edit `.env` before starting. PostgreSQL is the default database. To create the l
 ```sql
 CREATE ROLE resqbite LOGIN PASSWORD 'replace-with-a-secret';
 CREATE DATABASE resqbite OWNER resqbite;
+ALTER ROLE resqbite WITH CREATEDB;
 ```
 
-Set `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` in `.env` to match that database and role. Use a strong password and keep `.env` private. SQLite is available only for local development when `DEBUG=True`; set `DB_ENGINE=sqlite3` to use it. Production refuses to start without a real `SECRET_KEY` and `CLOUDINARY_URL`.
+`CREATEDB` is required so Django can create the temporary PostgreSQL test database when running `python manage.py test`. Set `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` in `.env` to match that database and role. Use a strong password and keep `.env` private. SQLite is available only for local development when `DEBUG=True`; set `DB_ENGINE=sqlite3` to use it. Production refuses to start without a real `SECRET_KEY` and `CLOUDINARY_URL`.
 
 ```powershell
 python manage.py check
