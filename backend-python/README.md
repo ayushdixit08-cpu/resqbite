@@ -41,7 +41,7 @@ Do not commit `.env` or production secrets. Use a real SMTP provider in producti
 
 ## API conventions
 
-- Base URL: `http://localhost:5000/api`
+- Base URL: `http://127.0.0.1:8000/api`
 - Authentication: `Authorization: Bearer <access-token>`
 - Registration/login return `success`, `message`, and `data` containing `access`, `refresh`, and `user`. The legacy `token` field is an alias for the access token.
 - Paginated list responses contain `data.count`, `data.next`, `data.previous`, and `data.results`. Set `page` and `page_size` (maximum 100).
@@ -92,4 +92,4 @@ Swagger UI is available at `/api/docs/`; the OpenAPI document is served from `/a
 
 ## React/Vite integration
 
-Set `VITE_API_BASE_URL=http://localhost:5000/api`. Store the access token returned by login and send it in the `Authorization` header. Use JSON for ordinary requests and `FormData` for image uploads. The React API client unwraps successful `{success, message, data}` envelopes while preserving server error messages.
+Set `VITE_API_BASE_URL=http://127.0.0.1:8000/api` for local development. Store the access token returned by login and send it in the `Authorization` header. Use JSON for ordinary requests and `FormData` for image uploads. The React API client unwraps successful `{success, message, data}` envelopes while preserving server error messages.

@@ -1,41 +1,40 @@
-# ResQBite project
+# ResQBite
 
-This repository keeps the frontend and backend in separate projects.
+ResQBite is a React/Vite food-rescue app backed by a Django REST API and PostgreSQL.
 
-## Structure
+## Local development
 
-- `frontend/` - React + Vite UI only
-- `backend/` - Java Spring Boot API and database layer
+### 1. Start PostgreSQL
 
-## Frontend
+Start your local PostgreSQL service and make sure the `resqbite` database and
+role configured in `backend-python/.env` exist.
 
-The frontend remains visually unchanged and is configured with:
+### 2. Start Django
 
-```env
-# local development
-VITE_API_URL=http://localhost:5000/api
+From `backend-python/`, activate the project's Python environment and run:
 
-# production (frontend/.env.production)
-VITE_API_URL=https://resqbite-2.onrender.com/api
+```powershell
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000
 ```
 
-## Backend
+The API health check is `http://127.0.0.1:8000/api/health/` and the interactive
+API documentation is `http://127.0.0.1:8000/api/docs/`.
 
-The backend runs on:
+### 3. Start React/Vite
 
-```text
-http://localhost:5000
+In a separate terminal:
+
+```powershell
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1
 ```
 
-with JWT-secured REST APIs and PostgreSQL connectivity through Spring Data JPA.
+Open `http://127.0.0.1:5173/`. The development API URL is configured in
+`frontend/.env.development` as `http://127.0.0.1:8000/api`. Django CORS allows
+both `localhost:5173` and `127.0.0.1:5173`.
 
-The active Render backend is `resqbite-2` at
-`https://resqbite-2.onrender.com`. Configure the backend's
-`CORS_ALLOWED_ORIGINS` Render variable with the deployed frontend origin
-before redeploying.
-
-## Communication flow
-
-```text
-Frontend -> REST API -> Spring Boot -> PostgreSQL
-```
+Use `backend-python/.env.example` to configure Django and PostgreSQL. Do not
+commit `.env` files or database credentials. The production API URL can be
+configured later with the frontend `VITE_API_BASE_URL` environment variable.
