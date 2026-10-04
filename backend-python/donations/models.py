@@ -26,11 +26,15 @@ class Donation(models.Model):
     ]
     STATUS_PENDING = "PENDING"
     STATUS_ACCEPTED = "ACCEPTED"
+    STATUS_IN_TRANSIT = "IN_TRANSIT"
+    STATUS_DELIVERED = "DELIVERED"
     STATUS_COMPLETED = "COMPLETED"
     STATUS_CANCELLED = "CANCELLED"
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
         (STATUS_ACCEPTED, "Accepted"),
+        (STATUS_IN_TRANSIT, "In transit"),
+        (STATUS_DELIVERED, "Delivered"),
         (STATUS_COMPLETED, "Completed"),
         (STATUS_CANCELLED, "Cancelled"),
     ]

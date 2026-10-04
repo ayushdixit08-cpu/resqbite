@@ -46,6 +46,9 @@ class PickupTask(models.Model):
     class Meta:
         ordering = ["-assigned_at"]
         indexes = [models.Index(fields=["volunteer", "status"]), models.Index(fields=["status", "assigned_at"])]
+        constraints = [
+            models.UniqueConstraint(fields=["donation"], name="one_pickup_task_per_donation"),
+        ]
 
     def __str__(self):
         return f"Delivery for {self.donation_id}"

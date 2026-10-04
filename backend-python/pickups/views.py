@@ -77,6 +77,8 @@ class PickupTaskViewSet(ModelViewSet):
             task.status = PickupTask.STATUS_ACCEPTED
             task.accepted_at = timezone.now()
             task.save(update_fields=["volunteer", "status", "accepted_at", "updated_at"])
+            task.donation.status = task.donation.STATUS_ACCEPTED
+            task.donation.save(update_fields=["status", "updated_at"])
             profile.is_available = False
             profile.save(update_fields=["is_available", "updated_at"])
             TrackingEvent.objects.create(donation=task.donation, status="VOLUNTEER_ASSIGNED", actor=request.user)
@@ -85,6 +87,13 @@ class PickupTaskViewSet(ModelViewSet):
                 notification_type="VOLUNTEER_ASSIGNMENT",
                 title="Volunteer assigned",
                 message=f"A volunteer accepted delivery for {task.donation.food_name}.",
+                data={"donation_id": str(task.donation_id), "task_id": str(task.id)},
+            )
+            Notification.objects.create(
+                recipient=task.organization.user,
+                notification_type="VOLUNTEER_ASSIGNMENT",
+                title="Volunteer assigned",
+                message=f"A volunteer accepted pickup for {task.donation.food_name}.",
                 data={"donation_id": str(task.donation_id), "task_id": str(task.id)},
             )
         return success_response(self.get_serializer(task).data, "Pickup task accepted.")
@@ -103,6 +112,9 @@ class PickupTaskViewSet(ModelViewSet):
             raise ValidationError("Invalid status transition. Pickup and delivery completion require QR verification.")
         task.status = requested_status
         task.save(update_fields=["status", "updated_at"])
+        if requested_status == PickupTask.STATUS_IN_TRANSIT:
+            task.donation.status = task.donation.STATUS_IN_TRANSIT
+            task.donation.save(update_fields=["status", "updated_at"])
         TrackingEvent.objects.create(donation=task.donation, status=requested_status, actor=request.user)
         if requested_status == PickupTask.STATUS_PICKUP_STARTED:
             Notification.objects.create(
@@ -111,5 +123,13 @@ class PickupTaskViewSet(ModelViewSet):
                 title="Pickup started",
                 message=f"Pickup has started for {task.donation.food_name}.",
                 data={"donation_id": str(task.donation_id)},
+            )
+        elif requested_status == PickupTask.STATUS_IN_TRANSIT:
+            Notification.objects.create(
+                recipient=task.organization.user,
+                notification_type="PICKUP_STARTED",
+                title="Food is on the way",
+                message=f"{task.donation.food_name} is in transit to your organization.",
+                data={"donation_id": str(task.donation_id), "task_id": str(task.id)},
             )
         return success_response(self.get_serializer(task).data, "Task status updated.")

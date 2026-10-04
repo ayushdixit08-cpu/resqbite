@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
 import {
-  Menu, X, ChevronRight, MapPin, Clock, Users, Leaf, Camera,
+  Menu, X, ChevronRight, MapPin, Clock, Users, Leaf,
   CheckCircle2, AlertCircle, Star, TrendingUp, Package, Truck, Bell,
   Search, Filter, Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight,
   Sparkles, Navigation, Phone, Award, BarChart3, Heart, ShieldCheck,
-  Loader2, ArrowLeft, Utensils, Soup, Apple,
-  Box, CircleCheck, XCircle, ScanLine, Timer, Gauge, ThumbsUp,
+  Loader2, ArrowLeft, Utensils, Soup,
+  Box, XCircle, ScanLine, Timer, ThumbsUp,
   LayoutGrid, PlusCircle, ChevronDown, Calendar, FileCheck2, Image as ImageIcon, Home, LogOut,
   Monitor, Rocket, Globe, CreditCard, Landmark, Smartphone, Wallet, Info,
   ListChecks, History as HistoryIcon
@@ -16,14 +16,13 @@ import {
 } from "recharts";
 import { API_BASE_URL, formatApiError } from "./services/api";
 import { authService } from "./services/authService";
-import { mockTracking, mockDeliveryTasks, mockFoodDonations, mockAvailableFood } from "./data/mockData";
 
 /* ============================================================
    BACKEND API CLIENT
    Talks to the ResQBite REST API (Django REST Framework + PostgreSQL).
    Point
    RESQBITE_API_URL at your deployed backend to go live; until
-   then, calls fail quietly and the UI falls back to sample data.
+   then, API failures are shown as empty/error states rather than replaced with invented data.
 ============================================================= */
 const RESQBITE_API_URL = API_BASE_URL;
 
@@ -47,12 +46,12 @@ function normalizeApiUser(apiUser) {
   const isOrganization = normalizedRole === "NGO" || normalizedRole === "ORGANIZATION" || normalizedRole === "ORG";
   return {
     ...apiUser,
-    role: isVolunteer ? "volunteer" : isOrganization ? "org" : "donor",
-    ...(isOrganization ? { org: { name: apiUser.bio || apiUser.name } } : {}),
+    role: normalizedRole === "ADMIN" ? "admin" : isVolunteer ? "volunteer" : isOrganization ? "org" : "donor",
   };
 }
 
 function dashboardForRole(user) {
+  if (user?.role === "admin") return "admin-dashboard";
   if (user?.role === "org") return "dashboard";
   if (user?.role === "volunteer") return "volunteer-dashboard";
   if (user?.role === "donor") return "donor-dashboard";
@@ -60,7 +59,7 @@ function dashboardForRole(user) {
 }
 
 async function apiRequest(path, options = {}) {
-  const cacheable = !options.method || options.method.toUpperCase() === "GET";
+  const cacheable = (!options.method || options.method.toUpperCase() === "GET") && !getAuthToken();
   if (cacheable && apiResultCache.has(path)) return apiResultCache.get(path);
   if (cacheable && apiInFlight.has(path)) return apiInFlight.get(path);
   const promise = (async () => {
@@ -97,30 +96,38 @@ async function authenticatedRequest(path, options = {}) {
   };
   
   let res;
+  const timeoutController = new AbortController();
+  const timeoutId = window.setTimeout(() => timeoutController.abort(), 15000);
   try {
     res = await fetch(`${RESQBITE_API_URL}${path}`, {
       ...options,
       headers,
+      signal: options.signal || timeoutController.signal,
     });
   } catch (error) {
+    if (timeoutController.signal.aborted) {
+      throw new Error(`The API request to ${path} timed out after 15 seconds.`, { cause: error });
+    }
     throw new Error(`Unable to reach the API at ${RESQBITE_API_URL}: ${error.message}`, { cause: error });
+  } finally {
+    window.clearTimeout(timeoutId);
   }
   
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
     if (res.status === 401) throw new Error("Unauthorized");
-    if (res.status === 404) throw new Error("Not found");
-    throw new Error(`API request failed: ${res.status} ${res.statusText}`);
+    const errors = data?.errors ? Object.values(data.errors).flat().join(" ") : "";
+    throw new Error(data?.message || data?.detail || errors || `API request failed: ${res.status} ${res.statusText}`);
   }
-  
-  const data = await res.json();
   return data?.success === true && Object.hasOwn(data, "data") ? data.data : data;
 }
 
-// Synchronous read for a path already resolved this session — lets a page
-// initialize its state (and skip the loading skeleton entirely) with data
-// it fetched on a previous visit, instead of always starting from null.
-function getCached(path) {
-  return apiResultCache.get(path);
+function rowsFromResponse(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.results)) return response.results;
+  if (Array.isArray(response?.organizations)) return response.organizations;
+  if (Array.isArray(response?.data)) return rowsFromResponse(response.data);
+  return [];
 }
 
 const api = {
@@ -131,9 +138,32 @@ const api = {
   analyticsTopNgos: (limit = 5) => apiRequest(`/analytics/top-ngos?limit=${limit}`),
   donationTracking: async (id) => {
     const result = await authenticatedRequest(`/tracking/donation/${id}/`);
+    const eventStatuses = {
+      DONATION_CREATED: "pending",
+      NGO_ACCEPTED: "accepted",
+      VOLUNTEER_ASSIGNED: "assigned",
+      PICKUP_STARTED: "pickup_started",
+      PICKED_UP: "picked_up",
+      IN_TRANSIT: "in_transit",
+      DELIVERED: "delivered",
+      COMPLETED: "completed",
+    };
     return {
-      donation: { id: result.donation_id, status: String(result.status || "").toLowerCase() },
-      timeline: result.events || [],
+      donation: {
+        ...result.donation,
+        id: result.donation_id,
+        status: String(result.status || "").toLowerCase(),
+        title: result.donation?.food_name,
+        expiry_time: result.donation?.expires_at,
+      },
+      organization: result.organization,
+      volunteer: result.volunteer,
+      timeline: (result.events || []).map((event) => ({
+        ...event,
+        status: eventStatuses[event.status] || String(event.status || "").toLowerCase(),
+        created_at: event.created_at,
+        note: event.notes,
+      })),
     };
   },
   organizations: async () => {
@@ -524,26 +554,6 @@ function ToastHost({ toasts }) {
 
 const ORG_TYPES = ["NGO", "Orphanage", "Old Age Home", "Shelter", "Community Kitchen", "Food Bank", "Disaster Relief Org"];
 
-const ORGS = [
-  { id: "anna-seva-trust", name: "Anna Seva Trust", type: "NGO", distance: "1.2 km", capacity: "80 meals", rating: 4.9, verified: true, hours: "8:00 AM – 9:00 PM", pref: "Veg only" },
-  { id: "asha-orphanage", name: "Asha Orphanage", type: "Orphanage", distance: "2.1 km", capacity: "45 meals", rating: 4.8, verified: true, hours: "7:00 AM – 8:00 PM", pref: "Veg & Non-veg" },
-  { id: "shanti-old-age-home", name: "Shanti Old Age Home", type: "Old Age Home", distance: "3.4 km", capacity: "30 meals", rating: 4.7, verified: true, hours: "9:00 AM – 6:00 PM", pref: "Soft / low-spice" },
-  { id: "umeed-shelter", name: "Umeed Shelter", type: "Shelter", distance: "4.0 km", capacity: "120 meals", rating: 4.6, verified: false, hours: "24 hours", pref: "Any" },
-  { id: "sarvodaya-community-kitchen", name: "Sarvodaya Community Kitchen", type: "Community Kitchen", distance: "5.6 km", capacity: "200 meals", rating: 4.9, verified: true, hours: "6:00 AM – 10:00 PM", pref: "Veg only" },
-];
-
-// Sample donation records shown on the Dashboard's Donations list —
-// intentionally more than the 3 shown by default so "View all" has
-// something to reveal (same demo-data convention as ORGS/ACTIVITY).
-const DASHBOARD_DONATIONS = [
-  { name: "Veg Biryani · 40 servings", org: "Anna Seva Trust", status: "In transit", tone: "gold" },
-  { name: "Bread & Bakery · 25 servings", org: "Umeed Shelter", status: "Delivered", tone: "primary" },
-  { name: "Fruit Basket · 60 servings", org: "Sarvodaya Community Kitchen", status: "Pending pickup", tone: "accent" },
-  { name: "Rajma Chawal · 50 servings", org: "Asha Orphanage", status: "Delivered", tone: "primary" },
-  { name: "Sandwich Platter · 30 servings", org: "Shanti Old Age Home", status: "Delivered", tone: "primary" },
-  { name: "Paneer Curry · 45 servings", org: "Anna Seva Trust", status: "In transit", tone: "gold" },
-  { name: "Mixed Fruit Box · 20 servings", org: "Umeed Shelter", status: "Pending pickup", tone: "accent" },
-];
 
 // ============================================================
 // ORGANIZATION-AS-RECEIVER DATA MODEL
@@ -560,19 +570,19 @@ const DASHBOARD_DONATIONS = [
 // canonical receiving-side lifecycle:
 //   Requested -> Accepted -> Volunteer Assigned -> Picked Up -> In Transit
 //   -> Arriving -> Delivered   (or -> Cancelled, off the main line)
-const ORG_STAGES = ["Requested", "Accepted", "Volunteer Assigned", "Picked Up", "In Transit", "Arriving", "Delivered"];
-const ORG_ACTIVE_STATUSES = ["Requested", "Accepted", "Volunteer Assigned", "Picked Up", "In Transit", "Arriving"];
-const ORG_PENDING_DELIVERY_STATUSES = ["Volunteer Assigned", "Picked Up", "In Transit", "Arriving"];
-const FOOD_CATEGORY_LIST = ["Prepared Meals", "Vegetarian", "Non-Vegetarian", "Bakery", "Fruits & Vegetables", "Packaged Food", "Other"];
-const REQUEST_STATUS_FILTERS = ["All", "Requested", "Accepted", "Assigned", "In Transit", "Delivered", "Cancelled"];
+const ORG_STAGES = ["Requested", "Accepted", "Volunteer Assigned", "Picked Up", "In Transit", "Delivered", "Completed"];
+const ORG_ACTIVE_STATUSES = ["Requested", "Accepted", "Volunteer Assigned", "Picked Up", "In Transit", "Delivered"];
+const ORG_PENDING_DELIVERY_STATUSES = ["Volunteer Assigned", "Picked Up", "In Transit", "Delivered"];
+const REQUEST_STATUS_FILTERS = ["All", "Requested", "Accepted", "Assigned", "In Transit", "Delivered", "Completed", "Cancelled"];
 // Maps a filter chip label to the underlying request status(es) it should match.
 const REQUEST_STATUS_FILTER_MAP = {
   All: null,
   Requested: ["Requested"],
   Accepted: ["Accepted"],
   Assigned: ["Volunteer Assigned", "Picked Up"],
-  "In Transit": ["In Transit", "Arriving"],
+  "In Transit": ["In Transit"],
   Delivered: ["Delivered"],
+  Completed: ["Completed"],
   Cancelled: ["Cancelled"],
 };
 
@@ -590,35 +600,8 @@ const REQUEST_STATUS_FILTER_MAP = {
 // last week) let the weekly chart and % comparison be computed from
 // these records instead of a separately hardcoded WEEKLY array.
 // ============================================================
-const ORG_FOOD_REQUESTS = [
-  // ---- ACTIVE (in progress) ----
-  { id: "RQ-3381", food: "Veg Biryani", quantity: "40 portions", meals: 40, weightKg: 24, category: "Prepared Meals", provider: "Grand Palace Banquet Hall", volunteer: "Rahul Verma", pickupLocation: "MG Road, Agra", pickupTime: "6:00 PM", eta: "15 minutes", status: "In Transit", requestedAt: "Today, 4:10 PM", updatedAgo: "12 min ago" },
-  { id: "RQ-3390", food: "Paneer Curry & Rice", quantity: "45 servings", meals: 45, weightKg: 27, category: "Vegetarian", provider: "Spice Route Restaurant", volunteer: "Priya Nair", pickupLocation: "Fatehabad Road, Agra", pickupTime: "7:30 PM", eta: null, status: "Volunteer Assigned", requestedAt: "Today, 5:00 PM", updatedAgo: "5 min ago" },
-  { id: "RQ-3376", food: "Fruit Basket", quantity: "60 units", meals: 60, weightKg: 36, category: "Fruits & Vegetables", provider: "FreshMart Wholesale", volunteer: null, pickupLocation: "Sanjay Place, Agra", pickupTime: "5:00 PM", eta: null, status: "Accepted", requestedAt: "Today, 3:20 PM", updatedAgo: "38 min ago" },
-  { id: "RQ-3399", food: "Mixed Vegetable Box", quantity: "20 units", meals: 20, weightKg: 12, category: "Fruits & Vegetables", provider: "Annapurna Kitchen", volunteer: null, pickupLocation: "Kamla Nagar, Agra", pickupTime: "8:00 PM", eta: null, status: "Requested", requestedAt: "Today, 6:05 PM", updatedAgo: "2 min ago" },
-  // ---- DELIVERED — this week (drives the weekly chart, weekOffset 0) ----
-  { id: "RQ-3200", food: "Sandwich Platter", quantity: "30 pieces", meals: 62, weightKg: 37, category: "Prepared Meals", provider: "Cafe Mocha", volunteer: "Priya Nair", pickupLocation: "Tajganj, Agra", pickupTime: "3:00 PM", eta: null, status: "Delivered", requestedAt: "Mon, 2:00 PM", deliveredDay: "Mon", weekOffset: 0, updatedAgo: "6 days ago" },
-  { id: "RQ-3211", food: "Rajma Chawal", quantity: "50 servings", meals: 78, weightKg: 47, category: "Vegetarian", provider: "Annapurna Kitchen", volunteer: "Amit Kumar", pickupLocation: "Kamla Nagar, Agra", pickupTime: "1:00 PM", eta: null, status: "Delivered", requestedAt: "Tue, 12:00 PM", deliveredDay: "Tue", weekOffset: 0, updatedAgo: "5 days ago" },
-  { id: "RQ-3222", food: "Bread & Bakery Assortment", quantity: "25 boxes", meals: 54, weightKg: 32, category: "Bakery", provider: "Sunrise Bakery", volunteer: "Sana Sheikh", pickupLocation: "Sadar Bazaar, Agra", pickupTime: "5:30 PM", eta: null, status: "Delivered", requestedAt: "Wed, 4:30 PM", deliveredDay: "Wed", weekOffset: 0, updatedAgo: "4 days ago" },
-  { id: "RQ-3233", food: "Chicken Curry & Rice", quantity: "55 servings", meals: 91, weightKg: 55, category: "Non-Vegetarian", provider: "Tandoori Nights", volunteer: "Vikram Singh", pickupLocation: "Sanjay Place, Agra", pickupTime: "8:00 PM", eta: null, status: "Delivered", requestedAt: "Thu, 7:00 PM", deliveredDay: "Thu", weekOffset: 0, updatedAgo: "3 days ago" },
-  { id: "RQ-3244", food: "Mixed Fruit Box", quantity: "70 units", meals: 118, weightKg: 71, category: "Fruits & Vegetables", provider: "Fresh Farms Co-op", volunteer: "Rahul Verma", pickupLocation: "Sanjay Place, Agra", pickupTime: "2:00 PM", eta: null, status: "Delivered", requestedAt: "Fri, 1:00 PM", deliveredDay: "Fri", weekOffset: 0, updatedAgo: "2 days ago" },
-  { id: "RQ-3255", food: "Packaged Snack Boxes", quantity: "90 boxes", meals: 143, weightKg: 86, category: "Packaged Food", provider: "Royal Sweets", volunteer: "Priya Nair", pickupLocation: "MG Road, Agra", pickupTime: "11:00 AM", eta: null, status: "Delivered", requestedAt: "Sat, 10:00 AM", deliveredDay: "Sat", weekOffset: 0, updatedAgo: "1 day ago" },
-  { id: "RQ-3266", food: "Veg Thali", quantity: "60 servings", meals: 96, weightKg: 58, category: "Vegetarian", provider: "Grand Palace Banquet Hall", volunteer: "Amit Kumar", pickupLocation: "MG Road, Agra", pickupTime: "1:30 PM", eta: null, status: "Delivered", requestedAt: "Sun, 12:30 PM", deliveredDay: "Sun", weekOffset: 0, updatedAgo: "6 hr ago" },
-  // ---- DELIVERED — last week (drives the week-over-week comparison, weekOffset 1) ----
-  { id: "RQ-3100", food: "Veg Pulao", quantity: "35 servings", meals: 50, weightKg: 30, category: "Vegetarian", provider: "Annapurna Kitchen", volunteer: "Sana Sheikh", pickupLocation: "Kamla Nagar, Agra", pickupTime: "1:00 PM", eta: null, status: "Delivered", requestedAt: "Mon, 1:00 PM", deliveredDay: "Mon", weekOffset: 1, updatedAgo: "13 days ago" },
-  { id: "RQ-3111", food: "Sandwich Platter", quantity: "35 pieces", meals: 65, weightKg: 39, category: "Prepared Meals", provider: "Cafe Mocha", volunteer: "Priya Nair", pickupLocation: "Tajganj, Agra", pickupTime: "3:00 PM", eta: null, status: "Delivered", requestedAt: "Tue, 2:00 PM", deliveredDay: "Tue", weekOffset: 1, updatedAgo: "12 days ago" },
-  { id: "RQ-3122", food: "Bread Assortment", quantity: "20 boxes", meals: 40, weightKg: 24, category: "Bakery", provider: "Sunrise Bakery", volunteer: "Vikram Singh", pickupLocation: "Sadar Bazaar, Agra", pickupTime: "5:00 PM", eta: null, status: "Delivered", requestedAt: "Wed, 4:00 PM", deliveredDay: "Wed", weekOffset: 1, updatedAgo: "11 days ago" },
-  { id: "RQ-3133", food: "Mutton Curry & Rice", quantity: "40 servings", meals: 70, weightKg: 42, category: "Non-Vegetarian", provider: "Tandoori Nights", volunteer: "Amit Kumar", pickupLocation: "Sanjay Place, Agra", pickupTime: "7:30 PM", eta: null, status: "Delivered", requestedAt: "Thu, 6:30 PM", deliveredDay: "Thu", weekOffset: 1, updatedAgo: "10 days ago" },
-  { id: "RQ-3144", food: "Fruit Basket", quantity: "55 units", meals: 90, weightKg: 54, category: "Fruits & Vegetables", provider: "FreshMart Wholesale", volunteer: "Rahul Verma", pickupLocation: "Sanjay Place, Agra", pickupTime: "4:00 PM", eta: null, status: "Delivered", requestedAt: "Fri, 3:00 PM", deliveredDay: "Fri", weekOffset: 1, updatedAgo: "9 days ago" },
-  { id: "RQ-3155", food: "Packaged Snack Boxes", quantity: "65 boxes", meals: 110, weightKg: 66, category: "Packaged Food", provider: "Royal Sweets", volunteer: "Sana Sheikh", pickupLocation: "MG Road, Agra", pickupTime: "11:00 AM", eta: null, status: "Delivered", requestedAt: "Sat, 10:00 AM", deliveredDay: "Sat", weekOffset: 1, updatedAgo: "8 days ago" },
-  { id: "RQ-3166", food: "Veg Thali", quantity: "50 servings", meals: 80, weightKg: 48, category: "Vegetarian", provider: "Grand Palace Banquet Hall", volunteer: "Vikram Singh", pickupLocation: "MG Road, Agra", pickupTime: "1:00 PM", eta: null, status: "Delivered", requestedAt: "Sun, 12:00 PM", deliveredDay: "Sun", weekOffset: 1, updatedAgo: "7 days ago" },
-  // ---- CANCELLED ----
-  { id: "RQ-3070", food: "Rajma Chawal", quantity: "30 servings", meals: 30, weightKg: 18, category: "Vegetarian", provider: "Annapurna Kitchen", volunteer: null, pickupLocation: "Kamla Nagar, Agra", pickupTime: "1:00 PM", eta: null, status: "Cancelled", requestedAt: "5 days ago", updatedAgo: "5 days ago" },
-];
-
 function isOrgRequestActive(status) { return ORG_ACTIVE_STATUSES.includes(status); }
 function isOrgRequestPendingDelivery(status) { return ORG_PENDING_DELIVERY_STATUSES.includes(status); }
-function orgStageIndex(status) { return ORG_STAGES.indexOf(status); }
 
 // Derives initials from a real name string — never a hardcoded pair
 // of letters — so any volunteer name pulled from the database renders
@@ -628,53 +611,9 @@ function initialsOf(name) {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 }
 
-const ORG_STAGE_ICONS = {
-  Requested: PlusCircle, Accepted: CheckCircle2, "Volunteer Assigned": Truck,
-  "Picked Up": Package, "In Transit": Truck, Arriving: Navigation, Delivered: Award,
-};
-
-// Builds the Track-page timeline strictly from the fields a real
-// request record actually carries (status, requestedAt, updatedAgo).
-// Only stages the request has actually reached are included — nothing
-// further is rendered as a "pending" placeholder — and any stage we
-// don't have a real timestamp for shows "Not available" rather than
-// an invented time.
-function buildRequestTimeline(r) {
-  if (!r) return [];
-  if (r.status === "Cancelled") {
-    return [
-      { label: "Requested", icon: PlusCircle, done: true, time: r.requestedAt || "Not available" },
-      { label: "Cancelled", icon: XCircle, done: true, cancelled: true, time: r.updatedAgo || "Not available" },
-    ];
-  }
-  const idx = orgStageIndex(r.status);
-  if (idx < 0) return [];
-  return ORG_STAGES.slice(0, idx + 1).map((stage, i) => {
-    const isCurrent = i === idx;
-    const isDelivered = stage === "Delivered";
-    return {
-      label: stage,
-      icon: ORG_STAGE_ICONS[stage] || Package,
-      done: !isCurrent || isDelivered,
-      active: isCurrent && !isDelivered,
-      time: stage === "Requested" ? (r.requestedAt || "Not available")
-        : isCurrent ? (r.updatedAgo || "Not available")
-          : "Not available",
-    };
-  });
-}
-
-// Progress is derived purely from how far along ORG_STAGES the
-// request's real status is — never a fixed percentage.
-function computeRequestProgress(status) {
-  if (!status || status === "Cancelled") return 0;
-  const idx = orgStageIndex(status);
-  if (idx < 0) return 0;
-  return Math.round((idx / (ORG_STAGES.length - 1)) * 100);
-}
-
 function toneForOrgStatus(status) {
-  if (status === "Delivered") return "primary";
+  if (status === "Completed") return "primary";
+  if (status === "Delivered") return "gold";
   if (status === "Cancelled") return "danger";
   if (status === "Requested") return "gold";
   if (status === "Accepted") return "primary";
@@ -685,7 +624,7 @@ function toneForOrgStatus(status) {
 // from OrgDataContext's live `requests` state) — never a second,
 // independently-maintained set of numbers.
 function computeOrgStats(requests) {
-  const delivered = requests.filter((r) => r.status === "Delivered");
+  const delivered = requests.filter((r) => r.status === "Completed");
   return {
     activeRequests: requests.filter((r) => isOrgRequestActive(r.status)).length,
     pendingDeliveries: requests.filter((r) => isOrgRequestPendingDelivery(r.status)).length,
@@ -699,9 +638,11 @@ function computeOrgWeekly(requests) {
   const thisWeek = Object.fromEntries(days.map((d) => [d, 0]));
   const lastWeek = Object.fromEntries(days.map((d) => [d, 0]));
   requests.forEach((r) => {
-    if (r.status !== "Delivered" || !r.deliveredDay) return;
-    const bucket = r.weekOffset === 1 ? lastWeek : thisWeek;
-    bucket[r.deliveredDay] += r.meals || 0;
+    if (r.status !== "Completed" || !r.deliveredAt) return;
+    const delivered = new Date(r.deliveredAt);
+    const age = Date.now() - delivered.getTime();
+    const bucket = age <= 7 * 86400000 ? thisWeek : age <= 14 * 86400000 ? lastWeek : null;
+    if (bucket) bucket[days[(delivered.getDay() + 6) % 7]] += r.meals || 0;
   });
   const weekly = days.map((d) => ({ d, meals: thisWeek[d] }));
   const thisTotal = days.reduce((s, d) => s + thisWeek[d], 0);
@@ -716,7 +657,7 @@ const FOOD_CATEGORY_COLORS = {
 };
 
 function computeOrgFoodCategories(requests) {
-  const delivered = requests.filter((r) => r.status === "Delivered");
+  const delivered = requests.filter((r) => r.status === "Completed");
   const totalMeals = delivered.reduce((s, r) => s + (r.meals || 0), 0);
   const byCategory = {};
   delivered.forEach((r) => { byCategory[r.category] = (byCategory[r.category] || 0) + (r.meals || 0); });
@@ -726,7 +667,7 @@ function computeOrgFoodCategories(requests) {
 }
 
 function computeOrgImpact(requests) {
-  const delivered = requests.filter((r) => r.status === "Delivered");
+  const delivered = requests.filter((r) => r.status === "Completed");
   const mealsReceived = delivered.reduce((s, r) => s + (r.meals || 0), 0);
   return {
     mealsReceived,
@@ -793,8 +734,72 @@ function buildOrgActivity(requests, limit = 4) {
 const OrgDataContext = createContext(null);
 
 function OrgDataProvider({ children }) {
-  const [requests, setRequests] = useState(ORG_FOOD_REQUESTS);
-  const addRequest = useCallback((req) => setRequests((prev) => [req, ...prev]), []);
+  const { user, isLoggedIn } = useCurrentUser();
+  const [requests, setRequests] = useState([]);
+  const [organization, setOrganization] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const reload = useCallback(async () => {
+    if (!isLoggedIn || user?.role !== "org") {
+      setRequests([]);
+      setOrganization(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const [donationResponse, taskResponse] = await Promise.all([
+        authenticatedRequest("/donations/my/"),
+        authenticatedRequest("/volunteers/tasks/"),
+      ]);
+      const tasks = rowsFromResponse(taskResponse);
+      const taskByDonation = new Map(tasks.map((task) => [task.donation, task]));
+      const donations = rowsFromResponse(donationResponse).map((donation) => {
+        const task = taskByDonation.get(donation.id);
+        const status = String(donation.status || "").toUpperCase();
+        const stage = {
+          PENDING: "Requested",
+          ACCEPTED: task?.volunteer ? "Volunteer Assigned" : "Accepted",
+          IN_TRANSIT: "In Transit",
+          DELIVERED: "Delivered",
+          COMPLETED: "Completed",
+          CANCELLED: "Cancelled",
+        }[status] || status;
+        return {
+          id: donation.id,
+          food: donation.food_name,
+          quantity: `${donation.quantity} ${donation.quantity_unit}`,
+          meals: Number(donation.people_served) || 0,
+          category: donation.category,
+          provider: donation.donor_name || "",
+          volunteer: task?.volunteer_name || null,
+          pickupLocation: donation.pickup_address,
+          pickupTime: donation.expires_at,
+          status: stage,
+          requestedAt: donation.created_at,
+          deliveredAt: status === "COMPLETED" ? donation.updated_at : null,
+          updatedAgo: timeAgo(donation.updated_at),
+          donorId: donation.donor,
+          taskId: task?.id || null,
+        };
+      });
+      const profile = await authenticatedRequest("/organizations/profile/").catch((profileError) => {
+        if (String(profileError.message).includes("404")) return null;
+        throw profileError;
+      });
+      setRequests(donations);
+      setOrganization(profile);
+      setError(null);
+    } catch (loadError) {
+      setRequests([]);
+      setOrganization(null);
+      setError(loadError.message || "Could not load organization data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoggedIn, user?.role]);
+  useEffect(() => { reload(); }, [reload]);
   const value = useMemo(() => {
     const stats = computeOrgStats(requests);
     const weekly = computeOrgWeekly(requests);
@@ -802,37 +807,21 @@ function OrgDataProvider({ children }) {
     const impact = computeOrgImpact(requests);
     const activity = buildOrgActivity(requests);
     const statusBreakdown = computeOrgStatusBreakdown(requests);
-    return { requests, addRequest, stats, weekly, categories, impact, activity, statusBreakdown };
-  }, [requests, addRequest]);
+    return { requests, organization, loading, error, reload, stats, weekly, categories, impact, activity, statusBreakdown };
+  }, [requests, organization, loading, error, reload]);
   return <OrgDataContext.Provider value={value}>{children}</OrgDataContext.Provider>;
 }
 
 function useOrgData() {
   const ctx = useContext(OrgDataContext);
   return ctx || {
-    requests: [], addRequest: () => { },
+    requests: [], organization: null, loading: false, error: null, reload: async () => {},
     stats: { activeRequests: 0, pendingDeliveries: 0, mealsReceived: 0, foodReceivedKg: 0 },
     weekly: { weekly: [], thisTotal: 0, lastTotal: 0, pctChange: 0 },
     categories: [], impact: { mealsReceived: 0, foodReceivedKg: 0, successfulDeliveries: 0, providersCount: 0, volunteersCount: 0, peopleServed: 0 },
     activity: [], statusBreakdown: [],
   };
 }
-
-const ACTIVITY = [
-  { icon: CheckCircle2, text: "Delivery to Anna Seva Trust completed", time: "12 min ago", color: T.primary },
-  { icon: Truck, text: "Volunteer Rahul picked up donation #RB-2291", time: "38 min ago", color: T.accent },
-  { icon: Package, text: "New donation created — 40 servings, Veg", time: "1 hr ago", color: T.gold },
-  { icon: ShieldCheck, text: "Umeed Shelter verified by Admin", time: "3 hr ago", color: T.primary },
-];
-
-// Sample upcoming/scheduled notifications shown in the notifications
-// dropdown, distinct from past ACTIVITY.
-const UPCOMING_NOTIFICATIONS = [
-  { icon: Truck, text: "Volunteer arriving for pickup in 15 min", time: "Today, 6:15 PM" },
-  { icon: Calendar, text: "Scheduled monthly donation renews tomorrow", time: "Tomorrow, 9:00 AM" },
-];
-
-
 
 /* ============================================================
    NOTIFICATION CENTER
@@ -844,75 +833,54 @@ const UPCOMING_NOTIFICATIONS = [
 
 const NotificationContext = createContext(null);
 
-function notifStorageKey(user) {
-  // Scope the cleared-state key to the signed-in account so clearing
-  // one user's notifications never touches another user's data.
-  return user?.email ? `notif-center:${user.email}` : null;
-}
-
 function useNotificationCenter(user, isLoggedIn) {
-  const [upcoming, setUpcoming] = useState(UPCOMING_NOTIFICATIONS);
-  const [recent, setRecent] = useState(ACTIVITY.slice(0, 3));
+  const [notifications, setNotifications] = useState([]);
   const [ready, setReady] = useState(false);
-  const storageKey = notifStorageKey(user);
-
-  // Load this user's cleared-state (if any) whenever the signed-in
-  // account changes, so a refresh — or switching accounts — shows the
-  // correct list instead of momentarily flashing stale data.
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!isLoggedIn || !storageKey) {
-        if (!cancelled) { setUpcoming(UPCOMING_NOTIFICATIONS); setRecent(ACTIVITY.slice(0, 3)); setReady(true); }
-        return;
-      }
-      try {
-        const stored = await window.storage.get(storageKey, false);
-        const parsed = stored?.value ? JSON.parse(stored.value) : null;
-        if (cancelled) return;
-        if (parsed?.cleared) {
-          setUpcoming([]);
-          setRecent([]);
-        } else {
-          setUpcoming(UPCOMING_NOTIFICATIONS);
-          setRecent(ACTIVITY.slice(0, 3));
-        }
-      } catch {
-        // No stored preference yet for this account — fall back to the
-        // default seed data rather than treating this as an error.
-        if (!cancelled) { setUpcoming(UPCOMING_NOTIFICATIONS); setRecent(ACTIVITY.slice(0, 3)); }
-      } finally {
-        if (!cancelled) setReady(true);
-      }
+  const [error, setError] = useState(null);
+  const load = useCallback(async () => {
+    if (!isLoggedIn || !user?.id) {
+      setNotifications([]);
+      setError(null);
+      setReady(true);
+      return;
     }
+    setReady(false);
+    try {
+      const response = await authenticatedRequest("/notifications/");
+      setNotifications(rowsFromResponse(response).map((notification) => ({
+        id: notification.id,
+        type: notification.notification_type,
+        text: notification.message || notification.title,
+        time: notification.created_at,
+        is_read: notification.is_read,
+        icon: notification.notification_type?.includes("PICKUP") ? Truck : Bell,
+      })));
+      setError(null);
+    } catch (loadError) {
+      setNotifications([]);
+      setError(loadError.message || "Could not load notifications.");
+    } finally {
+      setReady(true);
+    }
+  }, [isLoggedIn, user?.id]);
+
+  useEffect(() => {
     load();
-    return () => { cancelled = true; };
-  }, [storageKey, isLoggedIn]);
+    const refreshId = isLoggedIn ? window.setInterval(load, 30000) : null;
+    return () => { if (refreshId) window.clearInterval(refreshId); };
+  }, [load, isLoggedIn]);
 
   const clearAll = useCallback(async () => {
-    // Update state immediately — no waiting on the network/storage
-    // round-trip — and cancel nothing else since the notification
-    // panel itself owns no other timers (toasts are a separate system).
-    setUpcoming([]);
-    setRecent([]);
-    if (isLoggedIn && storageKey) {
-      try {
-        await window.storage.set(storageKey, JSON.stringify({ cleared: true, clearedAt: Date.now() }), false);
-      } catch (e) {
-        console.error("Failed to persist cleared notifications", e);
-      }
-    }
-  }, [isLoggedIn, storageKey]);
-
-  const unreadCount = isLoggedIn ? upcoming.length : 0;
-
-  // Memoized so the context value's identity only changes when the
-  // underlying data actually changes — not on every render of the App
-  // root (e.g. page navigation) — sparing every consumer (TopNav on
-  // every page) an unnecessary re-render.
+    if (!isLoggedIn) return;
+    await authenticatedRequest("/notifications/read-all/", { method: "POST", body: JSON.stringify({}) });
+    await load();
+  }, [isLoggedIn, load]);
+  const upcoming = notifications.filter((notification) => !notification.is_read);
+  const recent = notifications;
+  const unreadCount = upcoming.length;
   return useMemo(
-    () => ({ upcoming, recent, unreadCount, clearAll, ready }),
-    [upcoming, recent, unreadCount, clearAll, ready]
+    () => ({ upcoming, recent, unreadCount, clearAll, ready, error }),
+    [upcoming, recent, unreadCount, clearAll, ready, error]
   );
 }
 
@@ -953,42 +921,13 @@ function initialOf(user) {
   return firstNameOf(user).charAt(0).toUpperCase() || "U";
 }
 
-const WEEKLY = [
-  { d: "Mon", meals: 62 }, { d: "Tue", meals: 78 }, { d: "Wed", meals: 54 },
-  { d: "Thu", meals: 91 }, { d: "Fri", meals: 118 }, { d: "Sat", meals: 143 }, { d: "Sun", meals: 96 },
-];
-const PIE = [
-  { name: "Veg", value: 54, color: T.primary },
-  { name: "Non-Veg", value: 28, color: T.accent },
-  { name: "Bakery/Desserts", value: 18, color: T.gold },
-];
-
 const ROLES = [
   { key: "donor", label: "Donor", icon: Heart, sub: "Restaurants, events, individuals" },
   { key: "volunteer", label: "Volunteer", icon: Truck, sub: "Pick up & deliver food" },
   { key: "org", label: "Organization", icon: Building2, sub: "NGO, shelter, kitchen & more" },
 ];
+const WEEKLY = [];
 
-// Fallback profile used when Login doesn't collect a name (demo only —
-// a real build reads this from the authenticated session).
-const DEFAULT_USER = { name: "Diksha Sharma", email: "diksha@example.com", phone: "+91 98765 43210", role: "donor" };
-// Sample identity returned by the "Continue with Google" button. A real
-// integration would get this from Google's OAuth consent screen; here it
-// stands in for that so the button is actually functional in the demo
-// instead of just showing a toast and doing nothing.
-const GOOGLE_ACCOUNT = { name: "Diksha Sharma", email: "diksha.sharma@gmail.com", phone: "+91 98765 43210" };
-// A password is never actually needed for an OAuth sign-in, but the
-// Signup form's local state still expects one — this fills that field
-// so "Continue with Google" doesn't leave it looking incomplete.
-const GOOGLE_GENERATED_PWD = "Google-Auth-9f2k";
-
-// Sample monetary-donation history for a signed-in user's "My Donations"
-// section — demo/sample data, same convention as ORGS/ACTIVITY/WEEKLY.
-const SEED_DONATIONS = [
-  { id: "RB-DN-88213", amount: 1000, frequency: "one-time", status: "Completed", date: "8 August 2026", method: "UPI" },
-  { id: "RB-DN-87990", amount: 500, frequency: "monthly", status: "Completed", date: "1 July 2026", method: "Card" },
-  { id: "RB-DN-87401", amount: 250, frequency: "one-time", status: "Completed", date: "14 May 2026", method: "UPI" },
-];
 
 /* ============================================================
    SHARED PRIMITIVES
@@ -1078,86 +1017,13 @@ function RescueLine({ compact }) {
   );
 }
 
-const DonationRing = React.memo(function DonationRing({ value, total, size = 74, stroke = 7, color = T.gold }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const pct = value / total;
-  return (
-    <svg width={size} height={size} style={{ flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={T.sand} strokeWidth={stroke} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-        strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: "stroke-dashoffset .6s cubic-bezier(.16,1,.3,1), stroke .3s ease" }}
-      />
-      <text x="50%" y="50%" textAnchor="middle" dy="0.35em" fontFamily={fontMono} fontWeight="800" fontSize="15" fill={T.ink}>
-        {value}/{total}
-      </text>
-    </svg>
-  );
-});
-
-const DONATION_STAGES = [
-  { value: 1, label: "Accepted", urgency: "MEDIUM URGENCY", color: T.gold },
-  { value: 2, label: "Volunteer assigned", urgency: "MEDIUM URGENCY", color: T.gold },
-  { value: 3, label: "Pickup started", urgency: "HIGH URGENCY", color: T.accentD },
-  { value: 4, label: "Delivered", urgency: "COMPLETE", color: T.primary },
-];
-
-function LiveDonationCard() {
-  const [stageIdx, setStageIdx] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setStageIdx((i) => (i + 1) % DONATION_STAGES.length);
-    }, 3200);
-    return () => clearInterval(id);
-  }, []);
-  const stage = DONATION_STAGES[stageIdx];
-
-  return (
-    <div style={{
-      position: "absolute", inset: "6% 4%", borderRadius: 28, background: T.white,
-      border: `1px solid ${T.sand}`, boxShadow: "0 30px 70px rgba(20,35,28,.14)", overflow: "hidden"
-    }}>
-      <div style={{ padding: 30, position: "relative", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: T.inkSoft, marginBottom: 10, display: "flex", alignItems: "center", gap: 7 }}>
-            <span style={{ position: "relative", width: 7, height: 7 }}>
-              <span className="rq-pulse-dot" style={{ position: "absolute", inset: 0, borderRadius: "50%", background: T.primary }} />
-            </span>
-            LIVE DONATION
-          </div>
-          <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 26, color: T.ink, marginBottom: 4 }}>40 servings · Veg Thali</div>
-          <div style={{ fontSize: 14, color: T.inkSoft }}>Grand Palace Banquet Hall</div>
-        </div>
-
-        <div style={{ background: T.base, borderRadius: 18, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
-          <DonationRing value={stage.value} total={4} color={stage.color} />
-          <div>
-            <div key={stage.label} className="rq-fadeUp" style={{ fontWeight: 800, fontSize: 16, color: T.ink, marginBottom: 2 }}>{stage.label}</div>
-            <div style={{ fontFamily: fontMono, fontSize: 11, fontWeight: 700, letterSpacing: 1, color: stage.color === T.primary ? T.primary : T.accentD }}>{stage.urgency}</div>
-          </div>
-        </div>
-
-        <div>
-          <div style={{ height: 1, background: T.sand, marginBottom: 14 }} />
-          <div style={{ fontFamily: fontMono, fontSize: 11, color: T.inkSoft, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold }} /> Rescue Ring · tracks stage &amp; urgency together
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TopNav({ go, toast, page = "landing", isLoggedIn = false, onSignOut }) {
   const { user } = useCurrentUser();
   const userInitials = initialOf(user);
   // Organization accounts are food RECEIVERS, not donors — their nav
   // swaps "Donate" for "Available Food" and adds "History", and drops
   // the "Orgs" directory (an org account isn't browsing other orgs).
-  const isOrg = user?.role === "org" && !!user?.org;
+  const isOrg = user?.role === "org";
   const items = isOrg ? [
     { key: "landing", label: "Home", icon: Home },
     { key: "dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -1463,27 +1329,17 @@ function TopLeftBrand({ go }) {
 
 function Landing({ go, toast, isLoggedIn, onSignOut }) {
   const [liveOverview, setLiveOverview] = useState(null);
-  const [liveWeekly, setLiveWeekly] = useState(WEEKLY);
-  const [liveFoodMix, setLiveFoodMix] = useState(PIE);
-  const [isLive, setIsLive] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, wk, fm] = await Promise.all([
-          api.analyticsOverview(),
-          api.analyticsWeekly(7),
-          api.analyticsFoodMix(),
-        ]);
+        const ov = await api.analyticsOverview();
         if (cancelled) return;
         setLiveOverview(ov);
-        setLiveWeekly(wk.weekly.map((w) => ({ d: w.d, meals: w.meals })));
-        setLiveFoodMix(fm.foodMix);
-        setIsLive(true);
-      } catch (err) {
-        setIsLive(false);
+      } catch {
+        if (!cancelled) setLiveOverview(null);
       } finally {
         if (!cancelled) setAnalyticsLoading(false);
       }
@@ -1511,7 +1367,11 @@ function Landing({ go, toast, isLoggedIn, onSignOut }) {
                 <GhostButton onClick={() => go("tracking")}>See live tracking <ChevronRight size={15} style={{ display: "inline", verticalAlign: -2 }} /></GhostButton>
               </Reveal>
               <div style={{ display: "flex", gap: 28 }}>
-                {[["12,400+", "Meals rescued"], ["380", "Verified NGOs"], ["4.9★", "Avg. rating"]].map(([n, l], i) => (
+                {[
+                  [analyticsLoading ? "…" : liveOverview?.mealsRescued ?? "Unavailable", "Meals rescued"],
+                  [analyticsLoading ? "…" : liveOverview?.verifiedNgoCount ?? "Unavailable", "Verified NGOs"],
+                  [analyticsLoading ? "…" : liveOverview?.totalDonations ?? "Unavailable", "Donations"],
+                ].map(([n, l], i) => (
                   <Reveal key={i} index={i} delayMs={300 + i * 80}>
                     <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 24, color: T.ink }}>{n}</div>
                     <div style={{ fontSize: 12, color: T.inkSoft, fontWeight: 600 }}>{l}</div>
@@ -1520,38 +1380,22 @@ function Landing({ go, toast, isLoggedIn, onSignOut }) {
               </div>
             </div>
 
-            <Reveal delayMs={260} style={{ position: "relative", height: 420 }}>
-              <LiveDonationCard />
-
-              {/* floating food chips */}
-              {[
-                { icon: Soup, label: "40 meals ready", top: "0%", left: "-6%", tone: T.gold, delay: "0s" },
-                { icon: Apple, label: "Fresh · 2h left", top: "4%", left: "68%", tone: T.white, delay: "1.7s" },
-              ].map((c, i) => (
-                <div key={i} className="rq-float" style={{ "--r": "0deg", position: "absolute", top: c.top, left: c.left, animationDelay: c.delay, zIndex: 5 }}>
-                  <div style={{ background: T.white, borderRadius: 14, padding: "10px 14px", boxShadow: "0 14px 30px rgba(20,35,28,.18)", display: "flex", alignItems: "center", gap: 8, border: `1px solid ${T.sand}` }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 8, background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <c.icon size={14} color={T.primary} />
-                    </div>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{c.label}</span>
-                  </div>
+            <Reveal delayMs={260} style={{ height: 360, background: T.white, border: `1px solid ${T.sand}`, borderRadius: 26, padding: 28, display: "flex", flexDirection: "column", justifyContent: "center", boxShadow: "0 30px 70px rgba(20,35,28,.10)" }}>
+              <div style={{ fontFamily: fontMono, fontSize: 11, color: T.inkSoft, letterSpacing: 1.2, marginBottom: 14 }}>FOOD RESCUE WORKFLOW</div>
+              {["Donor creates a food listing", "Volunteer accepts and picks it up", "NGO confirms the delivery"].map((step, index) => (
+                <div key={step} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: `1px solid ${T.sand}` }}>
+                  <span style={{ width: 30, height: 30, borderRadius: "50%", background: T.primaryL, color: T.primaryD, display: "grid", placeItems: "center", fontWeight: 800 }}>{index + 1}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{step}</span>
                 </div>
               ))}
-
-              {/* centered on the card's bottom divider line */}
-              <div className="rq-float" style={{ "--r": "0deg", position: "absolute", top: "91%", left: "38%", transform: "translateX(-50%)", animationDelay: ".9s", zIndex: 6 }}>
-                <div style={{ background: T.white, borderRadius: 14, padding: "10px 14px", boxShadow: "0 14px 30px rgba(20,35,28,.18)", display: "flex", alignItems: "center", gap: 8, border: `1px solid ${T.sand}` }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 8, background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <CheckCircle2 size={14} color={T.primary} />
-                  </div>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>Pickup confirmed</span>
-                </div>
-              </div>
+              <div style={{ marginTop: 14, fontSize: 12, color: T.inkSoft }}>Each step updates from authenticated API records.</div>
             </Reveal>
           </div>
         </div>
       </section>
 
+      <FeatureGrid />
+      <OrgStrip go={go} />
       <Footer go={go} toast={toast} />
     </div>
   );
@@ -1579,7 +1423,16 @@ function FeatureGrid() {
   );
 }
 
-function OrgStrip({ toast }) {
+function OrgStrip({ go }) {
+  const [organizations, setOrganizations] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    api.organizations()
+      .then(({ organizations: rows }) => { if (!cancelled) setOrganizations(rows); })
+      .catch((loadError) => { if (!cancelled) setError(loadError.message || "Organizations could not be loaded."); });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <section style={{ padding: "0 24px 80px" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
@@ -1588,10 +1441,11 @@ function OrgStrip({ toast }) {
             <Pill tone="gold">Verified network</Pill>
             <h2 style={{ fontFamily: fontDisplay, fontSize: 28, marginTop: 12, color: T.ink, }}>Organizations receiving food near you</h2>
           </div>
-          <GhostButton onClick={() => toast("Opening full directory")} style={{ padding: "10px 16px", fontSize: 13 }}>View all</GhostButton>
+          <GhostButton onClick={() => go("organizations")} style={{ padding: "10px 16px", fontSize: 13 }}>View all</GhostButton>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }} className="rq-3col">
-          {ORGS.slice(0, 3).map((o, i) => <OrgCard key={i} o={o} />)}
+          {organizations.slice(0, 3).map((o) => <OrgCard key={o.id} o={o} />)}
+          {!organizations.length && <div style={{ color: T.inkSoft, fontSize: 13 }}>{error || "No verified organizations are listed yet."}</div>}
         </div>
       </div>
     </section>
@@ -1608,10 +1462,10 @@ function OrgCard({ o }) {
         {o.verified && <Pill tone="primary"><ShieldCheck size={11} /> Verified</Pill>}
       </div>
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{o.name}</div>
-      <div style={{ fontSize: 12, color: T.inkSoft, marginBottom: 12 }}>{o.type} · {o.distance}</div>
+      <div style={{ fontSize: 12, color: T.inkSoft, marginBottom: 12 }}>{o.type} · {o.address || "Address not listed"}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: T.inkSoft }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Star size={12} color={T.gold} fill={T.gold} /> {o.rating}</span>
-        <span>{o.capacity}</span>
+        <span>Receiving organization</span>
+        <span>{o.capacity ? `${o.capacity} capacity` : "Capacity not listed"}</span>
       </div>
     </div>
   );
@@ -2933,7 +2787,7 @@ function Login({ go, toast, onSignIn }) {
   );
 }
 
-function Signup({ go, toast, onSignIn, addOrg }) {
+function Signup({ go, toast, onSignIn }) {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState("donor");
   const [orgType, setOrgType] = useState("NGO");
@@ -2974,7 +2828,7 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         name: name.trim(),
         email: email.trim(),
         password: pwd,
-        role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "ORGANIZATION" : "DONOR",
+        role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "NGO" : "DONOR",
         ...(role === "org" && orgPhone ? { phone: orgPhone.trim() } : {}),
       };
 
@@ -2985,16 +2839,27 @@ function Signup({ go, toast, onSignIn, addOrg }) {
 
       authService.saveToken(data.access || data.token);
       const signedInUser = normalizeApiUser(data.user);
-      onSignIn?.(signedInUser);
       if (needsOrgStep) {
-        const org = {
-          id: orgName.trim().toLowerCase().replace(/\s+/g, "-") || `org-${Date.now()}`,
-          name: orgName, type: orgType, phone: orgPhone, address: orgAddress,
-          capacity: orgCapacity, hours: orgHours, pref: orgPref,
-          distance: "—", rating: null, verified: false, docsName, logoName,
-        };
-        addOrg?.(org);
+        try {
+          await authenticatedRequest("/organizations/profile/", {
+            method: "POST",
+            body: JSON.stringify({
+              name: orgName.trim(),
+              phone: orgPhone.trim(),
+              address: orgAddress.trim(),
+              capacity: Number(orgCapacity),
+              food_preferences: orgPref ? [orgPref] : [],
+              description: `${orgType}; receiving hours: ${orgHours.trim()}`,
+            }),
+          });
+        } catch (profileError) {
+          onSignIn?.(signedInUser);
+          toast(`Account created, but the organization profile could not be saved: ${profileError.message}`, "error");
+          go(dashboardForRole(signedInUser));
+          return;
+        }
       }
+      onSignIn?.(signedInUser);
       toast("Account created — welcome to ResQBite!");
       go(dashboardForRole(signedInUser));
     } catch (error) {
@@ -3005,17 +2870,8 @@ function Signup({ go, toast, onSignIn, addOrg }) {
     }
   };
 
-  // "Continue with Google" stands in for a real OAuth round-trip: it
-  // fills in the name/email (and a generated password, since the local
-  // form still needs one) from the sample Google account, then jumps
-  // straight to the details step — pre-filled instead of blank, saving
-  // the person from retyping what Google already knows about them.
   const continueWithGoogle = () => {
-    setName(GOOGLE_ACCOUNT.name);
-    setEmail(GOOGLE_ACCOUNT.email);
-    setPwd(GOOGLE_GENERATED_PWD);
-    setStep(2);
-    toast("Signed in with Google — details filled in");
+    toast("Google sign-up is not configured. Use email and password instead.", "error");
   };
 
   return (
@@ -3155,7 +3011,7 @@ const DISTANCE_FILTERS = [
   { key: "10", label: "Under 10 km", max: 10 },
 ];
 
-function OrganizationCard({ org, expanded, onToggle, go, toast }) {
+function OrganizationCard({ org, expanded, onToggle, go }) {
   return (
     <Reveal className="rq-card-hover" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 20 }}>
       <div style={{ display: "flex", gap: 14 }}>
@@ -3196,17 +3052,10 @@ function OrganizationCard({ org, expanded, onToggle, go, toast }) {
   );
 }
 
-function OrganizationsPage({ go, toast, isLoggedIn, onSignOut, orgs }) {
-  // The page already has usable data the instant it mounts — either data
-  // fetched earlier this session (apiResultCache) or the seeded `orgs`
-  // list passed down from App — so it never needs to block on the network
-  // before showing something. `loading` only covers the brief window
-  // before either of those is available, which in practice is never once
-  // the app has any seed data at all.
-  const cachedOrgsResponse = getCached("/organizations");
-  const [loading, setLoading] = useState(!cachedOrgsResponse && !(orgs && orgs.length));
+function OrganizationsPage({ go, toast, isLoggedIn, onSignOut }) {
+  const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
-  const [liveOrgs, setLiveOrgs] = useState(() => (cachedOrgsResponse ? (cachedOrgsResponse.organizations || cachedOrgsResponse) : null));
+  const [liveOrgs, setLiveOrgs] = useState([]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [distanceFilter, setDistanceFilter] = useState("any");
@@ -3220,11 +3069,9 @@ function OrganizationsPage({ go, toast, isLoggedIn, onSignOut, orgs }) {
     (async () => {
       try {
         const data = await api.organizations();
-        if (!cancelled) { setLiveOrgs(data.organizations || data); setErrored(false); }
-      } catch (err) {
-        // Backend not reachable — fall back to the directory already
-        // known on the client (seeded orgs + any newly registered ones).
-        if (!cancelled) setErrored(false);
+        if (!cancelled) { setLiveOrgs(data.organizations); setErrored(false); }
+      } catch {
+        if (!cancelled) { setLiveOrgs([]); setErrored(true); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -3242,7 +3089,7 @@ function OrganizationsPage({ go, toast, isLoggedIn, onSignOut, orgs }) {
     );
   };
 
-  const source = liveOrgs || orgs || [];
+  const source = liveOrgs;
   const types = ["All", ...Array.from(new Set(source.map((o) => o.type)))];
   const maxDistance = DISTANCE_FILTERS.find((d) => d.key === distanceFilter)?.max ?? Infinity;
 
@@ -3332,8 +3179,8 @@ function OrganizationsPage({ go, toast, isLoggedIn, onSignOut, orgs }) {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }} className="rq-2col">
-            {filtered.map((org, i) => (
-              <OrganizationCard key={org.id || org.name} org={org} go={go} toast={toast}
+            {filtered.map((org) => (
+              <OrganizationCard key={org.id || org.name} org={org} go={go}
                 expanded={expandedId === (org.id || org.name)}
                 onToggle={() => setExpandedId((cur) => (cur === (org.id || org.name) ? null : (org.id || org.name)))} />
             ))}
@@ -3349,70 +3196,35 @@ function OrganizationsPage({ go, toast, isLoggedIn, onSignOut, orgs }) {
 ============================================================= */
 
 function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
-  const orgData = useOrgData();
-  const { user } = useCurrentUser();
-  const [preview, setPreview] = useState(null);
-  const [scanState, setScanState] = useState("idle"); // idle | scanning | done
-  const [result, setResult] = useState(null);
-  const fileRef = useRef(null);
-
-  // Controlled form state — every field below is a real, editable
-  // input tied to this state via value + onChange, never a static
-  // placeholder-only element.
-  // Donor name/phone/email prefill from the signed-in account (when
-  // available) but stay fully editable — an anonymous donor gets blank
-  // fields and can type their own contact details.
-  const [donorName, setDonorName] = useState(user?.name || "");
-  const [donorPhone, setDonorPhone] = useState(user?.phone || "");
-  const [donorEmail, setDonorEmail] = useState(user?.email || "");
+  const preparedAtRef = useRef(null);
+  const bestBeforeRef = useRef(null);
   const [foodName, setFoodName] = useState("");
+  const [category, setCategory] = useState("VEG");
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrganization, setSelectedOrganization] = useState("");
+  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
   const [servings, setServings] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [preparedAt, setPreparedAt] = useState("");
   const [bestBefore, setBestBefore] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  const preparedAtRef = useRef(null);
-  const bestBeforeRef = useRef(null);
-
-  const onFile = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!/^image\/(jpeg|jpg|png)$/.test(f.type)) {
-      setErrors((prev) => ({ ...prev, photo: "Please upload a JPG or PNG image" }));
-      toast("Please upload a JPG or PNG image", "error");
-      return;
-    }
-    setErrors((prev) => ({ ...prev, photo: undefined }));
-    const reader = new FileReader();
-    reader.onload = () => setPreview(reader.result);
-    reader.readAsDataURL(f);
-    setScanState("scanning");
-    setResult(null);
-    setTimeout(() => {
-      setScanState("done");
-      setResult({
-        freshness: 91,
-        spoilage: "Not detected",
-        safe: true,
-        meals: 42,
-        expiry: "3h 20m safe window",
-        confidence: 96,
-        org: ORGS[0],
+  useEffect(() => {
+    let cancelled = false;
+    api.organizations()
+      .then(({ organizations: availableOrganizations }) => {
+        if (!cancelled) setOrganizations(availableOrganizations.filter((organization) => organization.verified));
+      })
+      .catch((error) => {
+        if (!cancelled) setSubmitError(error.message || "Could not load verified organizations.");
       });
-      toast("AI scan complete — food looks safe to donate");
-    }, 2600);
-  };
+    return () => { cancelled = true; };
+  }, []);
 
   const validate = () => {
     const next = {};
-    if (!donorName.trim()) next.donorName = "Your name is required";
-    if (!donorPhone.trim()) next.donorPhone = "Phone number is required";
-    else if (!/^[0-9+\-\s()]{7,20}$/.test(donorPhone.trim())) next.donorPhone = "Enter a valid phone number";
-    if (!donorEmail.trim()) next.donorEmail = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donorEmail.trim())) next.donorEmail = "Enter a valid email address";
-    if (!preview) next.photo = "A food photo is required";
     if (!foodName.trim()) next.foodName = "Food name is required";
     const servingsNum = Number(servings);
     if (!servings.trim()) next.servings = "Servings is required";
@@ -3420,6 +3232,8 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
       next.servings = "Enter a valid positive number";
     }
     if (!pickupLocation.trim()) next.pickupLocation = "Pickup location is required";
+    if (!selectedOrganization) next.organization = "Select a verified organization";
+    if (!safetyConfirmed) next.foodSafety = "Confirm the food-safety requirements before submitting";
     if (!preparedAt) next.preparedAt = "Prepared at date & time is required";
     if (!bestBefore) next.bestBefore = "Best before date & time is required";
     if (preparedAt && bestBefore) {
@@ -3432,17 +3246,11 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
   };
 
   const handleServingsChange = (e) => {
-    // Accept only digits so the field can never hold a non-numeric or
-    // negative value while still letting the user type freely.
     const raw = e.target.value;
     if (raw === "" || /^[0-9]+$/.test(raw)) setServings(raw);
   };
 
   const handleSubmit = async () => {
-    if (scanState === "scanning") {
-      toast("Please wait for the AI freshness scan to finish", "error");
-      return;
-    }
     if (!validate()) {
       toast("Please fill in all required fields correctly", "error");
       return;
@@ -3454,123 +3262,52 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
     }
 
     setSubmitting(true);
-
+    setSubmitError("");
     try {
-      const formData = new FormData();
-      formData.append("title", foodName.trim());
-      formData.append("description", `Donated by ${donorName.trim()} (${donorPhone.trim()})`);
-      formData.append("food_type", "other");
-      formData.append("quantity", String(Number(servings)));
-      formData.append("quantity_unit", "servings");
-      formData.append("expiry_time", new Date(bestBefore).toISOString());
-      formData.append("pickup_address", pickupLocation.trim());
-      formData.append("pickup_city", user?.city || "");
-      formData.append("latitude", "");
-      formData.append("longitude", "");
-      if (fileRef.current?.files?.[0]) {
-        formData.append("image", fileRef.current.files[0]);
-      }
-
-      const token = getAuthToken();
-      const res = await fetch(`${RESQBITE_API_URL}/requests`, {
+      await authenticatedRequest("/donations/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({
-          recipientId: null,
-          type: "FOOD_DONATION",
-          message: `${foodName.trim()} (${servings} servings) available at ${pickupLocation.trim()}`,
-          activityTitle: foodName.trim(),
+          organization: selectedOrganization,
+          food_name: foodName.trim(),
+          category,
+          food_type: category,
+          quantity: Number(servings),
+          quantity_unit: "servings",
+          people_served: Number(servings),
+          prepared_at: new Date(preparedAt).toISOString(),
+          expires_at: new Date(bestBefore).toISOString(),
+          pickup_address: pickupLocation.trim(),
+          food_safety: {
+            freshly_prepared: true,
+            properly_packed: true,
+            expiry_marked: true,
+            food_type_marked: true,
+          },
         }),
       });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || `API request failed: ${res.status} ${res.statusText}`);
-      }
-
-      toast("Food donation submitted successfully.");
+      toast("Food donation created successfully.");
       go("dashboard");
     } catch (error) {
-      console.error("Donation submit error:", error);
-      toast("Donation saved in demo mode while the server is unavailable.");
-      go("dashboard");
+      const message = error.message || "Food donation could not be submitted.";
+      setSubmitError(message);
+      toast(message, "error");
     } finally {
       setSubmitting(false);
     }
   };
-
   return (
     <div className="rq-root" style={{ minHeight: "100vh" }}>
       <TopNav go={go} toast={toast} page="donate" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
       <div style={{ margin: "0 auto", padding: "36px 24px 80px" }}>
         <Reveal style={{ marginBottom: 28 }}>
-          <Pill tone="accent"><Sparkles size={12} /> AI-assisted</Pill>
+          <Pill tone="primary"><Package size={12} /> Food rescue</Pill>
           <h1 style={{ fontFamily: fontDisplay, fontSize: 32, marginTop: 12, color: T.ink }}>Donate surplus food</h1>
-          <p style={{ color: T.inkSoft, fontSize: 14 }}>A clear photo helps our AI verify freshness and recommend the best-fit organization.</p>
+          <p style={{ color: T.inkSoft, fontSize: 14 }}>Choose a verified NGO; your donation will be saved and routed to volunteers for pickup.</p>
         </Reveal>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="rq-2col">
           {/* LEFT: form */}
           <Reveal index={0} style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 22, padding: 24 }}>
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: T.inkSoft, marginBottom: 8 }}>Your details</div>
-              <InputField
-                id="rq-donor-name" name="donorName" icon={User} label="Full name" required
-                placeholder="e.g. Diksha Sharma" value={donorName} onChange={(e) => setDonorName(e.target.value)}
-                error={errors.donorName}
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <InputField
-                  id="rq-donor-phone" name="donorPhone" icon={Phone} label="Phone number" required
-                  type="tel" inputMode="tel" placeholder="e.g. +91 98765 43210" value={donorPhone} onChange={(e) => setDonorPhone(e.target.value)}
-                  error={errors.donorPhone}
-                />
-                <InputField
-                  id="rq-donor-email" name="donorEmail" icon={Mail} label="Email" required
-                  type="email" placeholder="e.g. you@example.com" value={donorEmail} onChange={(e) => setDonorEmail(e.target.value)}
-                  error={errors.donorEmail}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 18 }}>
-              <label style={{ fontSize: 12.5, fontWeight: 700, color: T.inkSoft, display: "block", marginBottom: 8 }}>
-                Food photo <span style={{ color: T.danger }}>*</span>
-              </label>
-              <div id="rq-food-photo-dropzone" onClick={() => fileRef.current?.click()} style={{
-                borderRadius: 16, border: `2px dashed ${errors.photo ? T.danger : preview ? T.primary : T.sand}`, cursor: "pointer",
-                minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden",
-                background: preview ? "#000" : T.base
-              }}>
-                <input id="rq-food-photo-input" name="foodPhoto" ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png" style={{ display: "none" }} onChange={onFile} />
-                {!preview && (
-                  <div style={{ textAlign: "center", color: T.inkSoft }}>
-                    <Camera size={26} style={{ marginBottom: 8 }} />
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>Click to upload a photo</div>
-                    <div style={{ fontSize: 11.5 }}>JPG or PNG, clear top-down shot works best</div>
-                  </div>
-                )}
-                {preview && <img src={preview} alt="food" style={{ width: "100%", height: 220, objectFit: "cover", opacity: scanState === "scanning" ? 0.55 : 0.95 }} />}
-                {scanState === "scanning" && (
-                  <>
-                    <div className="rq-scanline" style={{ position: "absolute", left: 0, right: 0, height: 2, background: T.gold, boxShadow: `0 0 16px 3px ${T.gold}` }} />
-                    <div style={{ position: "absolute", bottom: 10, left: 10, right: 10, background: "rgba(20,35,28,.75)", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                      <Loader2 size={14} color={T.white} className="rq-spin" />
-                      <span style={{ color: T.white, fontSize: 12, fontWeight: 700 }}>AI analyzing freshness…</span>
-                    </div>
-                  </>
-                )}
-              </div>
-              {errors.photo && (
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, color: T.danger, fontSize: 11.5, fontWeight: 600 }}>
-                  <AlertCircle size={12} /> {errors.photo}
-                </div>
-              )}
-            </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <InputField
                 id="rq-food-name" name="foodName" icon={Utensils} label="Food name" required
@@ -3579,15 +3316,39 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
               />
               <InputField
                 id="rq-servings" name="servings" icon={Users} label="Servings" required
-                type="text" inputMode="numeric" placeholder="e.g. 40" value={servings} onChange={handleServingsChange}
+                type="number" min="1" inputMode="numeric" placeholder="e.g. 40" value={servings} onChange={handleServingsChange}
                 error={errors.servings}
               />
             </div>
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: T.inkSoft, marginBottom: 6 }}>
+              Food category
+              <select value={category} onChange={(event) => setCategory(event.target.value)} className="rq-focus"
+                style={{ display: "block", width: "100%", padding: "11px 12px", marginTop: 6, borderRadius: 11, border: `1.5px solid ${T.sand}`, background: T.white }}>
+                <option value="VEG">Vegetarian</option>
+                <option value="NON_VEG">Non-vegetarian</option>
+                <option value="VEGAN">Vegan</option>
+                <option value="DESSERTS">Desserts</option>
+                <option value="BAKERY">Bakery</option>
+                <option value="BEVERAGES">Beverages</option>
+                <option value="FRUITS">Fruits</option>
+                <option value="PACKED_FOOD">Packed food</option>
+              </select>
+            </label>
             <InputField
               id="rq-pickup-location" name="pickupLocation" icon={MapPin} label="Pickup location" required
               placeholder="Street, area, city" value={pickupLocation} onChange={(e) => setPickupLocation(e.target.value)}
               error={errors.pickupLocation}
             />
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: T.inkSoft, marginBottom: 6 }}>
+              Verified receiving organization
+              <select value={selectedOrganization} onChange={(event) => setSelectedOrganization(event.target.value)} className="rq-focus"
+                style={{ display: "block", width: "100%", padding: "11px 12px", marginTop: 6, borderRadius: 11, border: `1.5px solid ${T.sand}`, background: T.white }}>
+                <option value="">Select an organization</option>
+                {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+              </select>
+              {errors.organization && <span style={{ color: T.danger, fontSize: 11.5 }}>{errors.organization}</span>}
+              {organizations.length === 0 && <span style={{ display: "block", color: T.inkSoft, fontSize: 11.5, marginTop: 4 }}>No verified organizations are currently available.</span>}
+            </label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <InputField
                 id="rq-prepared-at" name="preparedAt" icon={Clock} label="Prepared at" required
@@ -3601,71 +3362,33 @@ function DonatePage({ go, toast, isLoggedIn, onSignOut }) {
               />
             </div>
 
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: "12px 0", fontSize: 12, color: T.inkSoft }}>
+              <input type="checkbox" checked={safetyConfirmed} onChange={(event) => setSafetyConfirmed(event.target.checked)} />
+              I confirm this food is freshly prepared, properly packed, has its expiry marked, and its food type is identified.
+            </label>
+            {errors.foodSafety && <div style={{ color: T.danger, fontSize: 11.5, marginBottom: 8 }}>{errors.foodSafety}</div>}
+            {submitError && <div role="alert" style={{ color: T.danger, background: "#FBE4E4", borderRadius: 10, padding: 10, marginBottom: 10 }}>{submitError}</div>}
+            {!isLoggedIn && <div style={{ color: T.inkSoft, fontSize: 12, marginBottom: 10 }}>Sign in with a donor account to create a donation.</div>}
             <PrimaryButton full disabled={submitting} onClick={handleSubmit} icon={ArrowRight} style={{ marginTop: 6 }}>
-              {submitting ? "Submitting…" : "Request food"}
+              {submitting ? "Submitting…" : "Create food donation"}
             </PrimaryButton>
           </Reveal>
 
-          {/* RIGHT: AI result */}
-          <Reveal index={1}>
-            {scanState !== "done" && (
-              <div style={{ background: T.white, border: `1px dashed ${T.sand}`, borderRadius: 22, padding: 24, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", color: T.inkSoft, minHeight: 380 }}>
-                <Gauge size={26} style={{ marginBottom: 10, opacity: .6 }} />
-                <div style={{ fontWeight: 700, fontSize: 14 }}>AI results will appear here</div>
-                <div style={{ fontSize: 12, marginTop: 4 }}>Upload a food photo to run the freshness check.</div>
-              </div>
-            )}
-            {scanState === "done" && result && (
-              <div className="rq-fadeUp" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 22, padding: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15 }}>
-                    <Sparkles size={16} color={T.accent} /> AI Scan Results
-                  </div>
-                  <Pill tone={result.safe ? "primary" : "danger"}>{result.safe ? <CircleCheck size={12} /> : <XCircle size={12} />} {result.safe ? "Safe to donate" : "Unsafe"}</Pill>
-                </div>
-
-                <ScoreRow label="Freshness score" value={result.freshness} suffix="/100" color={T.primary} />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "16px 0" }}>
-                  <MiniStat icon={AlertCircle} label="Spoilage" value={result.spoilage} />
-                  <MiniStat icon={Users} label="Est. meals" value={result.meals} />
-                  <MiniStat icon={Timer} label="Expiry prediction" value={result.expiry} />
-                  <MiniStat icon={Gauge} label="AI confidence" value={result.confidence + "%"} />
-                </div>
-
-                <div style={{ background: T.primaryL, borderRadius: 16, padding: 16, marginTop: 4 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, color: T.primaryD, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                    <ThumbsUp size={13} /> AI-recommended organization
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: T.white, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: T.primary, fontFamily: fontDisplay }}>{result.org.name[0]}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{result.org.name}</div>
-                      <div style={{ fontSize: 11.5, color: T.inkSoft }}>{result.org.distance} away · {result.org.capacity} capacity</div>
-                    </div>
-                    <Star size={14} color={T.gold} fill={T.gold} />
-                  </div>
-                </div>
-              </div>
-            )}
+          <Reveal index={1} style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 22, padding: 24, alignSelf: "start" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 12 }}>
+              <ShieldCheck size={18} color={T.primary} /> Your donation is routed safely
+            </div>
+            <p style={{ color: T.inkSoft, fontSize: 13, lineHeight: 1.6 }}>
+              We save your food details in PostgreSQL, create a pickup task for volunteers, and notify the donor and receiving NGO. Food-safety confirmations are required before submission.
+            </p>
+            <p style={{ color: T.inkSoft, fontSize: 12, marginTop: 12 }}>
+              Automated AI quality checks are currently unavailable; do not rely on an automated food-safety assessment.
+            </p>
           </Reveal>
         </div>
       </div>
 
       <Footer go={go} toast={toast} />
-    </div>
-  );
-}
-
-function ScoreRow({ label, value, suffix, color }) {
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
-        <span style={{ color: T.inkSoft }}>{label}</span>
-        <span style={{ fontFamily: fontMono, color }}>{value}{suffix}</span>
-      </div>
-      <div style={{ height: 8, background: T.sand, borderRadius: 6, overflow: "hidden" }}>
-        <div className="rq-grow" style={{ width: "100%", height: "100%", transform: `scaleX(${value / 100})`, background: `linear-gradient(90deg, ${color}, ${T.gold})`, borderRadius: 6 }} />
-      </div>
     </div>
   );
 }
@@ -3686,11 +3409,15 @@ function MiniStat({ icon: Icon, label, value }) {
 ============================================================= */
 
 function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) {
+  const { user } = useCurrentUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tracked, setTracked] = useState(null);
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [progress, setProgress] = useState(0);
+  const [verificationToken, setVerificationToken] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [generatingToken, setGeneratingToken] = useState(false);
   const pollIntervalRef = useRef(null);
   
   // Map status to human-readable labels
@@ -3698,7 +3425,9 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
     pending: "Pending",
     accepted: "Accepted",
     assigned: "Assigned",
+    pickup_started: "Pickup started",
     picked_up: "Picked Up",
+    in_transit: "In transit",
     delivered: "Delivered",
     out_for_delivery: "Out for delivery",
     completed: "Completed",
@@ -3707,12 +3436,14 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   };
 
   // Status progression for progress calculation
-  const STATUS_ORDER = ["pending", "accepted", "assigned", "picked_up", "out_for_delivery", "delivered", "completed"];
+  const STATUS_ORDER = ["pending", "accepted", "assigned", "pickup_started", "picked_up", "in_transit", "delivered", "completed"];
   const STATUS_ICONS = {
     pending: PlusCircle,
     accepted: CheckCircle2,
     assigned: Truck,
+    pickup_started: Navigation,
     picked_up: Package,
+    in_transit: Truck,
     delivered: Award,
     cancelled: XCircle,
     expired: AlertCircle,
@@ -3722,7 +3453,7 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   const buildTimeline = (donation, timeline) => {
     if (!timeline || !Array.isArray(timeline)) return [];
     
-    return timeline.map((track, idx) => {
+    return timeline.map((track) => {
       const isDone = donation.status !== track.status || timeline.some(t => 
         STATUS_ORDER.indexOf(t.status) > STATUS_ORDER.indexOf(track.status)
       );
@@ -3766,12 +3497,10 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
       setError(null);
       setLoading(false);
     } catch (err) {
-      console.error("Tracking fetch error:", err);
-      const fallback = { ...mockTracking, donation: { ...mockTracking.donation, id: String(trackingDonationId) } };
-      setTracked(fallback);
-      setTimelineEvents(buildTimeline(fallback.donation, fallback.timeline));
-      setProgress(calculateProgress(fallback.donation.status));
-      setError("Using demo data while the server is unavailable.");
+      setTracked(null);
+      setTimelineEvents([]);
+      setProgress(0);
+      setError(err.message || "Could not load tracking information.");
     } finally {
       setLoading(false);
     }
@@ -3798,7 +3527,7 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
 
   // Stop polling when delivered or cancelled
   useEffect(() => {
-    if (tracked && (tracked.donation.status === "delivered" || tracked.donation.status === "cancelled")) {
+    if (tracked && ["completed", "cancelled"].includes(tracked.donation.status)) {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     }
   }, [tracked?.donation?.status]);
@@ -3806,6 +3535,22 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   const donation = tracked?.donation;
   const volunteer = tracked?.volunteer;
   const organization = tracked?.organization;
+  const canGenerateToken = ["donor", "org", "admin"].includes(user?.role);
+  const generateVerificationToken = async () => {
+    setGeneratingToken(true);
+    setVerificationError("");
+    try {
+      const result = await authenticatedRequest(`/donations/qr/${trackingDonationId}/generate/`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setVerificationToken(result.token);
+    } catch (tokenError) {
+      setVerificationError(tokenError.message || "Could not generate a verification code.");
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
 
   // Show empty state if no donation selected
   if (!trackingDonationId) {
@@ -3830,12 +3575,27 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   }
 
   // Show loading state
-  if (loading || !donation) {
+  if (loading) {
     return (
       <div className="rq-root" style={{ minHeight: "100vh" }}>
         <TopNav go={go} toast={toast} page="tracking" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 80px" }}>
           <div style={{ height: 300, background: T.sand + "30", borderRadius: 24, animation: "rq-shimmer 2s infinite" }} />
+        </div>
+        <Footer go={go} toast={toast} />
+      </div>
+    );
+  }
+
+  if (error || !donation) {
+    return (
+      <div className="rq-root" style={{ minHeight: "100vh" }}>
+        <TopNav go={go} toast={toast} page="tracking" isLoggedIn={isLoggedIn} onSignOut={onSignOut} />
+        <div style={{ maxWidth: 700, margin: "70px auto", padding: "0 24px", textAlign: "center" }} role="alert">
+          <AlertCircle size={28} color={T.danger} />
+          <h1 style={{ fontFamily: fontDisplay, color: T.ink }}>Tracking data unavailable</h1>
+          <p style={{ color: T.inkSoft }}>{error || "No tracking record was returned for this donation."}</p>
+          <PrimaryButton onClick={() => go("dashboard")}>Return to dashboard</PrimaryButton>
         </div>
         <Footer go={go} toast={toast} />
       </div>
@@ -3863,6 +3623,18 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
             </div>
           )}
         </Reveal>
+        {canGenerateToken && (
+          <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 16, padding: 16, marginBottom: 18 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Pickup and delivery verification</div>
+            <p style={{ color: T.inkSoft, fontSize: 12.5 }}>After the NGO accepts this donation, generate a code and securely share it with the assigned volunteer for pickup and delivery verification.</p>
+            <button disabled={generatingToken} onClick={generateVerificationToken} className="rq-btn"
+              style={{ background: T.primary, color: T.white, border: 0, borderRadius: 9, padding: "9px 13px", fontWeight: 700, cursor: "pointer" }}>
+              {generatingToken ? "Generating…" : "Generate verification code"}
+            </button>
+            {verificationToken && <div style={{ marginTop: 10, fontFamily: fontMono, fontSize: 16, fontWeight: 800, userSelect: "all" }}>{verificationToken}</div>}
+            {verificationError && <div role="alert" style={{ color: T.danger, fontSize: 12, marginTop: 8 }}>{verificationError}</div>}
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 20 }} className="rq-2col">
           {/* MAP PLACEHOLDER */}
@@ -4018,29 +3790,22 @@ function DashboardRedirect({ user, go }) {
 
 function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   const { user } = useCurrentUser();
-  const isOrg = user?.role === "org" && !!user?.org;
+  const isOrg = user?.role === "org";
+  const isAdmin = user?.role === "admin";
   const orgData = useOrgData();
-  // Four independent datasets, each with its own loading flag so a slow
-  // endpoint only skeletons its own card instead of the whole dashboard.
-  // Each also initializes from the module-level apiResultCache: if we
-  // already fetched it on a previous visit to this page this session,
-  // it renders immediately with no skeleton and no re-fetch.
-  const [dashboardData, setDashboardData] = useState(() => getCached("/dashboard") || null);
-  const [overview, setOverview] = useState(() => getCached("/analytics/overview") || null);
-  const [weeklyData, setWeeklyData] = useState(() => {
-    const cached = getCached("/analytics/weekly?days=7");
-    return cached ? cached.weekly.map((w) => ({ d: w.d, meals: w.meals })) : WEEKLY;
-  });
-  const [foodMixData, setFoodMixData] = useState(() => getCached("/analytics/food-mix")?.foodMix || PIE);
-  const [statusData, setStatusData] = useState(() => {
-    const cached = getCached("/analytics/status-breakdown");
-    return cached ? cached.statusBreakdown.map((s) => ({ status: s.status.replace(/_/g, " "), count: s.count })) : [];
-  });
-  const [loadingOverview, setLoadingOverview] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/overview"));
-  const [loadingWeekly, setLoadingWeekly] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/weekly?days=7"));
-  const [loadingFoodMix, setLoadingFoodMix] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/food-mix"));
-  const [loadingStatus, setLoadingStatus] = useState(!isOrg && !getCached("/dashboard") && !getCached("/analytics/status-breakdown"));
-  const [isLive, setIsLive] = useState(() => !!getCached("/dashboard") || !!getCached("/analytics/overview"));
+  const [dashboardData, setDashboardData] = useState(null);
+  const [overview, setOverview] = useState(null);
+  const [weeklyData, setWeeklyData] = useState([]);
+  const [foodMixData, setFoodMixData] = useState([]);
+  const [statusData, setStatusData] = useState([]);
+  const [donationRows, setDonationRows] = useState([]);
+  const [notificationRows, setNotificationRows] = useState([]);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+  const [loadingWeekly, setLoadingWeekly] = useState(true);
+  const [loadingFoodMix, setLoadingFoodMix] = useState(true);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [dataError, setDataError] = useState(null);
+  const [isLive, setIsLive] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   // Donations/surplus list is capped to the latest 3 by default; "View all"
@@ -4051,44 +3816,75 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   const listSectionRef = useRef(null);
   const impactSectionRef = useRef(null);
 
-  // Organization dashboards are computed live from OrgDataContext (the
-  // same store the Track page reads) — never fetched separately — so
-  // they need no backend round-trip and no loading state of their own.
-  // Only the donor/volunteer dashboard still talks to the demo backend.
-  // Each of the four calls below resolves and updates its own card
-  // independently — a slow one never holds up the other three, and none
-  // of them block the page itself from rendering (it's already returned
-  // below using whatever cached/fallback data is in state right now).
   useEffect(() => {
     if (isOrg) {
-      setLoadingOverview(false); setLoadingWeekly(false);
-      setLoadingFoodMix(false); setLoadingStatus(false);
+      setLoadingOverview(orgData.loading);
+      setLoadingWeekly(orgData.loading);
+      setLoadingFoodMix(orgData.loading);
+      setLoadingStatus(orgData.loading);
+      setDataError(orgData.error);
       return;
     }
     let cancelled = false;
-
-    authenticatedRequest("/dashboard")
-      .then((data) => {
+    setLoadingOverview(true);
+    setLoadingWeekly(true);
+    setLoadingFoodMix(true);
+    setLoadingStatus(true);
+    Promise.all([
+      authenticatedRequest("/dashboard"),
+      authenticatedRequest(isAdmin ? "/analytics/admin/dashboard/" : "/analytics/overview/"),
+      authenticatedRequest("/analytics/weekly/?days=7"),
+      authenticatedRequest("/analytics/food-mix/"),
+      authenticatedRequest("/analytics/status-breakdown/"),
+      isAdmin
+        ? authenticatedRequest("/analytics/admin/donations/")
+        : authenticatedRequest("/donations/my/"),
+      authenticatedRequest("/notifications/"),
+    ])
+      .then(([dash, metrics, weekly, foodMix, statusBreakdown, donationResponse, notificationResponse]) => {
         if (cancelled) return;
-        setDashboardData(data);
-        setOverview({
-          activeDonations: data.stats.activeDonations,
-          inTransit: data.stats.inTransit,
-          mealsDelivered: data.stats.mealsDonated,
-          deliveredDonations: data.stats.deliveredDonations,
-          totalDonations: data.stats.totalDonations,
-          verifiedNgoCount: 0,
-          volunteerCount: 0,
-          co2SavedTonnes: 0,
-        });
-        setWeeklyData(data.weeklyMeals || WEEKLY);
+        setDashboardData(dash);
+        setOverview(metrics);
+        setWeeklyData(weekly.weekly || []);
+        const mix = foodMix.foodMix || [];
+        const total = mix.reduce((sum, item) => sum + Number(item.value || 0), 0);
+        setFoodMixData(mix.map((item) => ({
+          name: item.name,
+          value: total ? Math.round(Number(item.value || 0) * 100 / total) : 0,
+          color: item.name === "NON_VEG" ? T.accent : item.name === "VEG" ? T.primary : T.gold,
+        })));
+        setStatusData((statusBreakdown.statusBreakdown || []).map((item) => ({
+          status: item.status.replace(/_/g, " "),
+          count: item.value,
+        })));
+        const rows = rowsFromResponse(donationResponse);
+        setDonationRows(rows.map((donation) => ({
+          id: donation.id,
+          name: `${donation.food_name} · ${donation.people_served} servings`,
+          org: donation.organization_name || donation["organization__name"] || "",
+          status: String(donation.status || "").replace(/_/g, " ").toLowerCase(),
+          tone: donation.status === "COMPLETED" ? "primary" : donation.status === "IN_TRANSIT" ? "gold" : "accent",
+        })));
+        setNotificationRows(rowsFromResponse(notificationResponse).slice(0, 4).map((notification) => ({
+          icon: notification.notification_type?.includes("PICKUP") ? Truck : Bell,
+          text: notification.message || notification.title,
+          time: timeAgo(notification.created_at),
+          color: T.primary,
+        })));
         setIsLive(true);
+        setDataError(null);
       })
-      .catch(() => {
-        // fall back to public analytics if the dashboard route is unavailable
-        return api.analyticsOverview()
-          .then((ov) => { if (!cancelled) { setOverview(ov); setIsLive(true); } })
-          .catch(() => { });
+      .catch((loadError) => {
+        if (cancelled) return;
+        setDashboardData(null);
+        setOverview(null);
+        setWeeklyData([]);
+        setFoodMixData([]);
+        setStatusData([]);
+        setDonationRows([]);
+        setNotificationRows([]);
+        setIsLive(false);
+        setDataError(loadError.message || "Could not load dashboard data.");
       })
       .finally(() => {
         if (!cancelled) {
@@ -4100,15 +3896,12 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
       });
 
     return () => { cancelled = true; };
-  }, [isOrg]);
+  }, [isOrg, isAdmin, orgData.error, orgData.loading, user?.id]);
 
-  // Chart data sources: organization accounts always read the live,
-  // request-derived numbers from OrgDataContext; donor/volunteer
-  // accounts keep the backend-fetched (or sample-fallback) data above.
   const weeklyChartData = isOrg ? orgData.weekly.weekly : weeklyData;
   const foodMixChartData = isOrg ? orgData.categories : foodMixData;
   const statusChartData = isOrg ? orgData.statusBreakdown : statusData;
-  const weeklyPctChange = isOrg ? orgData.weekly.pctChange : (dashboardData?.weeklyChange ?? 0);
+  const weeklyPctChange = isOrg ? orgData.weekly.pctChange : dashboardData?.weeklyChange;
 
   // Organization dashboards are framed around RECEIVING food — an
   // organization is a food receiver, never a donor — instead of generic
@@ -4120,32 +3913,29 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
     { icon: Truck, label: "Pending Deliveries", value: orgData.stats.pendingDeliveries, delta: `${orgData.requests.filter((r) => r.status === "In Transit").length} in transit now`, color: T.gold },
     { icon: Users, label: "Meals Received", value: orgData.stats.mealsReceived, delta: `${weeklyPctChange >= 0 ? "+" : ""}${weeklyPctChange}% this week`, color: T.accent },
     { icon: Box, label: "Food Received", value: orgData.stats.foodReceivedKg, suffix: " kg", delta: `${orgData.impact.successfulDeliveries} deliveries`, color: T.primaryD },
+  ] : isAdmin && overview ? [
+    { icon: Users, label: "Total users", value: overview.total_users, delta: `${overview.total_donors} donors`, color: T.primary },
+    { icon: Building2, label: "Verified NGOs", value: overview.verified_ngos, delta: `${overview.total_ngos} registered`, color: T.gold },
+    { icon: Truck, label: "Volunteers", value: overview.total_volunteers, delta: `${overview.active_volunteers} available`, color: T.accent },
+    { icon: Package, label: "Donations", value: overview.total_donations, delta: `${overview.completed_donations} completed`, color: T.primaryD },
   ] : (dashboardData ? [
     { icon: Package, label: "Active donations", value: dashboardData.stats.activeDonations, delta: `${dashboardData.stats.todayDonations || 0} today`, color: T.primary },
     { icon: Truck, label: "In transit", value: dashboardData.stats.inTransit, delta: `${dashboardData.stats.deliveredDonations || 0} delivered`, color: T.gold },
     { icon: Users, label: "Meals donated", value: dashboardData.stats.mealsDonated, delta: `${dashboardData.weeklyChange || 0}% this week`, color: T.accent },
     { icon: Award, label: "Rescue points", value: dashboardData.stats.rescuePoints, delta: dashboardData.stats.tier, color: T.primaryD },
-  ] : (overview ? [
-    { icon: Package, label: "Active donations", value: overview.activeDonations, delta: `${overview.totalDonations} total`, color: T.primary },
-    { icon: Truck, label: "In transit", value: overview.inTransit, delta: `${overview.deliveredDonations} delivered`, color: T.gold },
-    { icon: Users, label: "Meals donated", value: overview.mealsDelivered, delta: `${overview.co2SavedTonnes}t CO₂ saved`, color: T.accent },
-    { icon: Award, label: "Verified NGOs", value: overview.verifiedNgoCount, delta: `${overview.volunteerCount} volunteers`, color: T.primaryD },
-  ] : [
-    { icon: Package, label: "Active donations", value: 0, delta: "0 today", color: T.primary },
-    { icon: Truck, label: "In transit", value: 0, delta: "0 delivered", color: T.gold },
-    { icon: Users, label: "Meals donated", value: 0, delta: "0% this week", color: T.accent },
-    { icon: Award, label: "Rescue points", value: 0, delta: "Bronze", color: T.primaryD },
-  ])
-  );
+  ] : []);
 
   const scrollToList = () => { setShowAllDonations(true); listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const scrollToImpact = () => impactSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const quickActions = isOrg ? [
     { icon: Package, label: "Find Food", act: () => go("available-food") },
-    { icon: PlusCircle, label: "Request Food", act: () => go("donate") },
     { icon: Navigation, label: "Track Delivery", act: () => go("tracking") },
     { icon: Clock, label: "Food History", act: () => go("org-history") },
+    { icon: Building2, label: "Organization directory", act: () => go("organizations") },
+  ] : isAdmin ? [
+    { icon: Building2, label: "Organizations", act: () => go("organizations") },
+    { icon: Bell, label: "Notifications", act: () => toast("Notifications are available from the bell menu.") },
   ] : [
     { icon: PlusCircle, label: "New donation", act: () => go("donate") },
     { icon: Navigation, label: "Track pickup", act: () => go("tracking") },
@@ -4166,8 +3956,13 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                 account's own record — never hardcoded); everyone else by
                 their personal first name. Long org names get a smaller
                 font so they never dominate the header like a logo. */}
-            <h1 style={{ fontFamily: fontDisplay, fontSize: isOrg && (user.org.name || "").length > 7 ? 22 : 30, color: T.ink }}>{isOrg ? (user.org.name || "Organization") : firstNameOf(user)} 👋</h1>
+            <h1 style={{ fontFamily: fontDisplay, fontSize: isOrg && (orgData.organization?.name || "").length > 7 ? 22 : 30, color: T.ink }}>{isOrg ? (orgData.organization?.name || "Organization") : firstNameOf(user)} 👋</h1>
           </div>
+          {dataError && (
+            <div role="alert" style={{ background: "#FBE4E4", color: T.danger, borderRadius: 12, padding: 12, marginBottom: 18 }}>
+              Dashboard data could not be loaded: {dataError}
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {!loadingOverview && isLive && (
               <Pill tone="primary">
@@ -4187,22 +3982,19 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
             <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>Organization profile</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }} className="rq-4col">
               {[
-                [Building2, "Organization name", user.org.name],
-                [Phone, "Phone", user.org.phone],
-                [MapPin, "Address", user.org.address],
-                [Users, "Daily capacity", user.org.capacity],
-                [Clock, "Operating hours", user.org.hours],
-                [Utensils, "Food preference", user.org.pref],
-                [user.org.verified ? ShieldCheck : AlertCircle, "Verification status", user.org.verified ? "Verified" : "Pending"],
-                [FileCheck2, "Verification documents", user.org.docsName],
-                [ImageIcon, "Organization logo", user.org.logoName],
+                [Building2, "Organization name", orgData.organization?.name],
+                [Phone, "Phone", orgData.organization?.phone],
+                [MapPin, "Address", orgData.organization?.address],
+                [Users, "Daily capacity", orgData.organization?.capacity],
+                [Utensils, "Food preference", (orgData.organization?.food_preferences || []).join(", ")],
+                [orgData.organization?.verified ? ShieldCheck : AlertCircle, "Verification status", orgData.organization?.verification_status || "Pending"],
               ].map(([Icon, label, value], i) => (
                 <div key={i}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.inkSoft, fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
                     <Icon size={12} /> {label.toUpperCase()}
                   </div>
                   {label === "Verification status" ? (
-                    <Pill tone={user.org.verified ? "primary" : "gold"}>{value}</Pill>
+                    <Pill tone={orgData.organization?.verified ? "primary" : "gold"}>{value}</Pill>
                   ) : (
                     <div style={{ fontWeight: 700, fontSize: 13.5 }}>{value || "Not provided"}</div>
                   )}
@@ -4338,11 +4130,13 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                 ))}
               </div>
               {(() => {
-                const sourceList = isOrg ? orgData.requests : DASHBOARD_DONATIONS;
+                const sourceList = isOrg ? orgData.requests : donationRows;
                 const allowedStatuses = isOrg ? REQUEST_STATUS_FILTER_MAP[filter] : null;
                 const filteredDonations = sourceList
                   .filter(d => (isOrg ? d.food : d.name).toLowerCase().includes(search.toLowerCase()))
-                  .filter(d => !isOrg || !allowedStatuses || allowedStatuses.includes(d.status));
+                  .filter(d => isOrg
+                    ? !allowedStatuses || allowedStatuses.includes(d.status)
+                    : filter === "All" || (filter === "Delivered" && d.status === "completed") || (filter === "Cancelled" && d.status === "cancelled") || (filter === "Active" && !["completed", "cancelled"].includes(d.status)));
                 const visibleDonations = showAllDonations ? filteredDonations : filteredDonations.slice(0, DONATIONS_PREVIEW_COUNT);
                 const hasMore = filteredDonations.length > DONATIONS_PREVIEW_COUNT;
                 return (
@@ -4435,7 +4229,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
             <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 20, padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>Recent activity</div>
               <div className="rq-scrollbar" style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 260, overflowY: "auto", paddingRight: 4 }}>
-                {(isOrg ? orgData.activity : ACTIVITY).map((a, i) => (
+                {(isOrg ? orgData.activity : notificationRows).map((a, i) => (
                   <div key={i} style={{ display: "flex", gap: 10 }}>
                     <a.icon size={15} color={a.color} style={{ marginTop: 2, flexShrink: 0 }} />
                     <div>
@@ -4490,72 +4284,21 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
 
 function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
   const { user } = useCurrentUser();
-  const isOrg = user?.role === "org" && !!user?.org;
+  const isOrg = user?.role === "org";
   const orgData = useOrgData();
   const [search, setSearch] = useState("");
-  const [requested, setRequested] = useState({});
-  const [availableFood, setAvailableFood] = useState(mockAvailableFood);
-
-  useEffect(() => {
-    if (!isOrg) return;
-    let cancelled = false;
-    authenticatedRequest("/donations")
-      .then((rows) => {
-        const donations = (Array.isArray(rows) ? rows : rows?.donations || [])
-          .filter((donation) => ["available", "pending"].includes(String(donation.status).toLowerCase()))
-          .map((donation) => ({
-            ...donation,
-            name: donation.name || donation.food || donation.title,
-            quantity: donation.quantity || "Available",
-            meals: donation.meals || donation.servings || "—",
-            provider: donation.donor || "Food provider",
-            location: donation.pickupLocation || donation.location || "Pickup location unavailable",
-            pickupTime: donation.pickupTime || "Contact provider",
-          }));
-        if (!cancelled && donations.length > 0) setAvailableFood(donations);
-      })
-      .catch(() => { /* Keep the existing layout fallback if the API is unavailable. */ });
-    return () => { cancelled = true; };
-  }, [isOrg]);
-
-  // Items already requested this session, PLUS anything already active
-  // in the shared org request store (so the flag survives navigating
-  // away and back, not just local component state).
-  const activeFoodNames = new Set(
-    orgData.requests.filter((r) => isOrgRequestActive(r.status)).map((r) => r.food)
-  );
-
   const requestFood = async (item) => {
-    setRequested((prev) => ({ ...prev, [item.name]: true }));
-    if (Number.isInteger(Number(item.id))) {
-      try {
-        await authenticatedRequest(`/donations/${item.id}/claim`, { method: "POST" });
-      } catch (error) {
-        // Keep the request usable offline; the local shared organization
-        // store below is the demo source of truth until the API recovers.
-        toast("Using demo data while the server is unavailable.");
-      }
+    if (item.status !== "Delivered") {
+      toast("This donation is already assigned to your organization and is being processed.");
+      return;
     }
-    // Creates a real "Requested" record in the same store the Track
-    // page and Dashboard read from — this is the start of the
-    // Requested -> ... -> Delivered lifecycle, not just a local flag.
-    orgData.addRequest({
-      id: `RQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      food: item.name,
-      quantity: item.quantity,
-      meals: item.meals,
-      weightKg: Math.round(item.meals * 0.6),
-      category: item.category || "Other",
-      provider: item.provider,
-      volunteer: null,
-      pickupLocation: item.location,
-      pickupTime: item.pickupTime,
-      eta: null,
-      status: "Requested",
-      requestedAt: "Just now",
-      updatedAgo: "just now",
-    });
-    toast(`Request sent to ${item.provider} for ${item.name}`);
+    try {
+      await authenticatedRequest(`/donations/${item.id}/receive/`, { method: "POST", body: JSON.stringify({}) });
+      await orgData.reload();
+      toast(`Receipt confirmed for ${item.food}.`);
+    } catch (error) {
+      toast(error.message || "Could not confirm receipt.", "error");
+    }
   };
 
   if (!isOrg) {
@@ -4572,9 +4315,9 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
     );
   }
 
-  const results = availableFood.filter((f) =>
-    f.name.toLowerCase().includes(search.toLowerCase()) || f.provider.toLowerCase().includes(search.toLowerCase())
-  );
+  const results = orgData.requests
+    .filter((donation) => !["Completed", "Cancelled"].includes(donation.status))
+    .filter((donation) => donation.food.toLowerCase().includes(search.toLowerCase()) || donation.provider.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="rq-root" style={{ minHeight: "100vh" }}>
@@ -4582,8 +4325,8 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 80px" }}>
         <Reveal style={{ marginBottom: 24 }}>
           <Pill tone="primary"><Package size={12} /> Food receiver</Pill>
-          <h1 style={{ fontFamily: fontDisplay, fontSize: 30, marginTop: 12, color: T.ink }}>Available food near you</h1>
-          <p style={{ color: T.inkSoft, fontSize: 14 }}>Restaurants, businesses, and events with surplus food ready for pickup. Request what your organization can use — ResQBite assigns a volunteer to bring it to you.</p>
+          <h1 style={{ fontFamily: fontDisplay, fontSize: 30, marginTop: 12, color: T.ink }}>Incoming food donations</h1>
+          <p style={{ color: T.inkSoft, fontSize: 14 }}>Donations assigned to your organization, with live volunteer pickup and delivery status.</p>
         </Reveal>
 
         <div style={{ position: "relative", maxWidth: 420, marginBottom: 22 }}>
@@ -4594,28 +4337,26 @@ function AvailableFoodPage({ go, toast, isLoggedIn, onSignOut }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }} className="rq-2col">
           {results.map((item, i) => {
-            const alreadyRequested = requested[item.name] || activeFoodNames.has(item.name);
             return (
               <Reveal key={i} index={i} className="rq-card-hover" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 20, padding: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 42, height: 42, borderRadius: 12, background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Soup size={19} color={T.primary} /></div>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: 15 }}>{item.name}</div>
+                      <div style={{ fontWeight: 800, fontSize: 15 }}>{item.food}</div>
                       <div style={{ fontSize: 12, color: T.inkSoft }}>{item.provider}</div>
                     </div>
                   </div>
-                  <Pill tone={alreadyRequested ? "gold" : "primary"}>{alreadyRequested ? "Requested" : "Available"}</Pill>
+                  <Pill tone={toneForOrgStatus(item.status)}>{item.status}</Pill>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
                   <MiniStat icon={Package} label="Quantity" value={item.quantity} />
                   <MiniStat icon={Users} label="Meals" value={item.meals} />
-                  <MiniStat icon={Clock} label="Pickup window" value={item.pickupTime} />
-                  <MiniStat icon={MapPin} label="Location" value={item.location} />
+                  <MiniStat icon={Clock} label="Updated" value={item.updatedAgo} />
+                  <MiniStat icon={MapPin} label="Pickup location" value={item.pickupLocation} />
                 </div>
-                <PrimaryButton full icon={alreadyRequested ? CheckCircle2 : ArrowRight} onClick={() => !alreadyRequested && requestFood(item)}
-                  style={alreadyRequested ? { opacity: 0.55, cursor: "not-allowed", boxShadow: "none" } : {}}>
-                  {alreadyRequested ? "Requested" : "Request Food"}
+                <PrimaryButton full icon={item.status === "Delivered" ? CheckCircle2 : Navigation} disabled={item.status !== "Delivered"} onClick={() => requestFood(item)}>
+                  {item.status === "Delivered" ? "Confirm receipt" : item.status === "Completed" ? "Received" : "Delivery in progress"}
                 </PrimaryButton>
               </Reveal>
             );
@@ -4644,7 +4385,7 @@ function OrgHistoryPage({ go, toast, isLoggedIn, onSignOut }) {
   // Sourced directly from OrgDataContext — the same live store the
   // Track page and Dashboard read — so a request that's just been
   // delivered shows up here immediately, never a separate list.
-  const history = orgData.requests.filter((r) => r.status === "Delivered" || r.status === "Cancelled");
+  const history = orgData.requests.filter((r) => r.status === "Completed" || r.status === "Cancelled");
 
   if (!isOrg) {
     return (
@@ -4728,61 +4469,6 @@ function OrgHistoryPage({ go, toast, isLoggedIn, onSignOut }) {
    3) If there is genuinely nothing there yet, the UI shows an
       empty state. Nothing on this page is hardcoded/seeded/fake.
 ============================================================= */
-
-const API_BASE = `${RESQBITE_API_URL}/volunteer`;
-
-function getVolunteerAuthHeaders(extra = {}) {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
-  };
-}
-
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: getVolunteerAuthHeaders() });
-  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
-  return res.json();
-}
-async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: getVolunteerAuthHeaders(),
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) throw new Error(`POST ${path} -> ${res.status}`);
-  return res.json();
-}
-async function apiPatch(path, body) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "PATCH",
-    headers: getVolunteerAuthHeaders(),
-    body: JSON.stringify(body || {}),
-  });
-  if (!res.ok) throw new Error(`PATCH ${path} -> ${res.status}`);
-  return res.json();
-}
-
-/* --- Persistent storage fallback (real, durable, per-volunteer) --- */
-async function storeGet(key, shared = false) {
-  try {
-    const r = await window.storage.get(key, shared);
-    return r?.value ? JSON.parse(r.value) : null;
-  } catch {
-    return null;
-  }
-}
-async function storeSet(key, value, shared = false) {
-  try {
-    await window.storage.set(key, JSON.stringify(value), shared);
-    return true;
-  } catch {
-    return false;
-  }
-}
-const ns = (email, suffix) => `volunteer:${suffix}:${email || "anon"}`;
-const OPEN_POOL_KEY = "volunteer:open-pickups"; // shared pool, populated by the provider/admin side of the real app
 
 /* ============================================================
    DESIGN TOKENS — identical to the main ResQBite app
@@ -4900,7 +4586,7 @@ function VDLogo() {
    WORKFLOW CONSTANTS
    Assigned -> Pickup Started -> Picked Up -> In Transit -> Delivered -> Completed
 ============================================================= */
-const TASK_STATUSES = ["Assigned", "Pickup Started", "Picked Up", "In Transit", "Delivered", "Completed"];
+const TASK_STATUSES = ["Assigned", "Pickup Started", "Picked Up", "In Transit", "Delivered"];
 const STATUS_ACTION = {
   "Assigned": { next: "Pickup Started", label: "Mark Arrived at Provider", icon: Navigation, hint: "Head to the provider location, then mark yourself arrived." },
   "Pickup Started": { next: "Picked Up", label: "Confirm Food Pickup", icon: CheckCircle2, hint: "Confirm you've collected the food from the provider." },
@@ -4911,18 +4597,19 @@ const STATUS_ACTION = {
 const BACKEND_TASK_STATUS = {
   available: "Assigned",
   pending: "Assigned",
+  assigned: "Assigned",
   accepted: "Assigned",
+  pickup_started: "Pickup Started",
   pickup_scheduled: "Pickup Started",
   picked_up: "Picked Up",
   in_transit: "In Transit",
   delivered: "Delivered",
   completed: "Completed",
+  cancelled: "Cancelled",
 };
 function normalizeTaskStatus(status) {
   return BACKEND_TASK_STATUS[String(status || "").toLowerCase()] || status;
 }
-const POINTS_PER_TASK = 20;
-const POINTS_PER_MEAL = 1;
 
 function haversineKm(a, b) {
   if (!a || !b || a.lat == null || b.lat == null) return null;
@@ -4943,7 +4630,6 @@ function timeAgo(iso) {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
-function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
 /* ============================================================
    DATA HOOK — loads real data (API first, storage fallback),
@@ -4952,210 +4638,171 @@ function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}
 // Session-level cache (by volunteer email) so navigating away from the
 // volunteer dashboard and back reuses the last snapshot instead of
 // showing skeletons and re-fetching all five endpoints again.
-const volunteerDataCache = new Map();
 
 function useVolunteerData(user) {
-  const email = user?.email || "volunteer@local";
-  const cached = volunteerDataCache.get(email);
-  const [loading, setLoading] = useState(!cached);
+  const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);
-  const [profile, setProfile] = useState(cached?.profile || { name: user?.name || "", email, phone: user?.phone || "", available: true });
-  const [available, setAvailable] = useState(cached?.available || []);
-  const [tasks, setTasks] = useState(cached?.tasks || []);
-  const [notifications, setNotifications] = useState(cached?.notifications || []);
-  const [history, setHistory] = useState(cached?.history || []);
+  const [error, setError] = useState(null);
+  const [profile, setProfile] = useState({ name: user?.name || "", email: user?.email || "", phone: user?.phone || "", available: false });
+  const [available, setAvailable] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [rewardsPoints, setRewardsPoints] = useState(0);
 
-  const normalizeNotifications = useCallback((rows = []) => {
-    return (rows || []).map((n) => ({
-      id: n.id || uid(),
-      type: n.type || "status",
-      message: n.message || n.title || "New notification",
-      createdAt: n.created_at || n.createdAt || new Date().toISOString(),
-      read: Boolean(n.is_read ?? n.read ?? false),
-    }));
-  }, []);
+  const normalizeTask = useCallback((task) => ({
+    ...task,
+    food: task.donation_name,
+    foodName: task.donation_name,
+    quantityDisplay: `${task.quantity ?? ""} ${task.quantity_unit || ""}`.trim(),
+    servings: Number(task.people_served) || 0,
+    status: normalizeTaskStatus(task.status),
+    provider: { name: task.donor_name, address: task.pickup_address },
+    receivingOrg: { name: task.organization_name, address: task.delivery_address },
+    pickupLocation: task.pickup_address,
+    deliveryLocation: task.delivery_address,
+  }), []);
 
-  const persist = useCallback(async (patch) => {
-    if (patch.profile) await storeSet(ns(email, "profile"), patch.profile);
-    if (patch.tasks) await storeSet(ns(email, "tasks"), patch.tasks);
-    if (patch.notifications) await storeSet(ns(email, "notifications"), patch.notifications);
-    if (patch.history) await storeSet(ns(email, "history"), patch.history);
-    if (patch.pool) await storeSet(OPEN_POOL_KEY, patch.pool, true);
-  }, [email]);
-
-  // `silent` skips the loading flag entirely — used for the background
-  // poll and for a revisit where we already have a cached snapshot to
-  // show immediately, so a refresh never blanks the page back to
-  // skeletons for data the person can already see.
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     try {
-      const [meRes, avRes, tkRes, ntRes, hiRes] = await Promise.all([
-        apiGet("/me"), apiGet("/pickups/available"), apiGet("/tasks"), apiGet("/notifications"), apiGet("/history"),
+      const [profileResponse, taskResponse, historyResponse, notificationResponse, rewardsResponse] = await Promise.all([
+        authenticatedRequest("/volunteers/profile/"),
+        authenticatedRequest("/volunteers/tasks/"),
+        authenticatedRequest("/volunteers/tasks/history/"),
+        authenticatedRequest("/notifications/"),
+        authenticatedRequest("/rewards/me/"),
       ]);
-
-      const profilePayload = meRes?.user || meRes || { name: user?.name || "", email, phone: user?.phone || "", available: true };
-      const snapshot = {
-        profile: {
-          ...profilePayload,
-          name: profilePayload.name || user?.name || "Volunteer",
-          email: profilePayload.email || email,
-          phone: profilePayload.phone || user?.phone || "",
-          available: profilePayload.available ?? true,
-        },
-        available: Array.isArray(avRes?.pickups) ? avRes.pickups : Array.isArray(avRes) ? avRes : [],
-        tasks: (Array.isArray(tkRes?.tasks) ? tkRes.tasks : Array.isArray(tkRes) ? tkRes : [])
-          .map((task) => ({ ...task, status: normalizeTaskStatus(task.status) })),
-        notifications: normalizeNotifications(ntRes?.notifications || ntRes || []),
-        history: Array.isArray(hiRes?.history) ? hiRes.history : Array.isArray(hiRes) ? hiRes : [],
-      };
-      volunteerDataCache.set(email, snapshot);
-      setProfile(snapshot.profile); setAvailable(snapshot.available); setTasks(snapshot.tasks);
-      setNotifications(snapshot.notifications); setHistory(snapshot.history);
+      const profileData = profileResponse.user || {};
+      const allTasks = rowsFromResponse(taskResponse).map(normalizeTask);
+      const completedTasks = rowsFromResponse(historyResponse).map(normalizeTask)
+        .filter((task) => ["Delivered", "Completed", "Cancelled"].includes(task.status));
+      const rawNotifications = rowsFromResponse(notificationResponse);
+      setProfile({
+        name: profileData.name || user?.name || "",
+        email: profileData.email || user?.email || "",
+        phone: profileData.phone || user?.phone || "",
+        available: Boolean(profileResponse.is_available),
+        service_radius_km: profileResponse.service_radius_km,
+      });
+      setAvailable(allTasks.filter((task) => !task.volunteer && task.status === "Assigned"));
+      setTasks(allTasks.filter((task) => task.volunteer === user?.id && !["Delivered", "Completed", "Cancelled"].includes(task.status)));
+      setHistory(completedTasks);
+      setRewardsPoints(Number(rewardsResponse.total_points) || 0);
+      setNotifications(rawNotifications.map((notification) => ({
+        id: notification.id,
+        type: notification.notification_type,
+        message: notification.message || notification.title,
+        createdAt: notification.created_at,
+        read: Boolean(notification.is_read),
+      })));
       setLive(true);
-    } catch {
+      setError(null);
+    } catch (loadError) {
       setLive(false);
-      const [p, tk, nt, hi, pool] = await Promise.all([
-        storeGet(ns(email, "profile")), storeGet(ns(email, "tasks")), storeGet(ns(email, "notifications")),
-        storeGet(ns(email, "history")), storeGet(OPEN_POOL_KEY, true),
-      ]);
-      const snapshot = {
-        profile: p || { name: user?.name || "", email, phone: user?.phone || "", available: true },
-        available: Array.isArray(pool) ? pool : mockFoodDonations.map((donation) => ({
-          id: donation.donationId, food: donation.foodName, quantity: `${donation.servings} servings`,
-          pickupTime: "Today", provider: { name: donation.donorName, address: donation.pickupLocation },
-        })),
-        tasks: Array.isArray(tk) && tk.length > 0 ? tk : mockDeliveryTasks.map((task) => ({
-          id: task.taskId, food: task.foodName, quantity: `${task.servings} servings`,
-          status: "In Transit", pickupTime: "Today", provider: { name: "Rajesh Kumar", address: task.pickupLocation },
-          receivingOrg: { name: "Hope Foundation", address: task.deliveryLocation },
-        })),
-        notifications: normalizeNotifications(Array.isArray(nt) ? nt : []),
-        history: Array.isArray(hi) ? hi : [],
-      };
-      volunteerDataCache.set(email, snapshot);
-      setProfile(snapshot.profile); setTasks(snapshot.tasks); setNotifications(snapshot.notifications);
-      setHistory(snapshot.history); setAvailable(snapshot.available);
+      setError(loadError.message || "Could not load volunteer data.");
+      if (!silent) {
+        setAvailable([]);
+        setTasks([]);
+        setNotifications([]);
+        setHistory([]);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [email, normalizeNotifications, user]);
+  }, [normalizeTask, user]);
 
-  // If we already have a cached snapshot (from an earlier visit this
-  // session) this refresh runs silently in the background; otherwise it's
-  // a real first load and shows the section skeletons while it resolves.
-  useEffect(() => { load({ silent: !!cached }); }, [load]);
-
-  // Light poll for server-pushed updates only; never invents data if
-  // the backend is unreachable — it simply stays on local storage state.
-  // Always silent: a background refresh should never blank already-visible
-  // data back to a skeleton.
+  useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    const id = setInterval(() => { if (live) load({ silent: true }); }, 25000);
-    return () => clearInterval(id);
+    const interval = window.setInterval(() => { if (live) load({ silent: true }); }, 25000);
+    return () => window.clearInterval(interval);
   }, [live, load]);
 
-  const pushNotification = useCallback(async (type, message) => {
-    const notif = { id: uid(), type, message, createdAt: new Date().toISOString(), read: false };
-    setNotifications((prev) => {
-      const next = [notif, ...prev].slice(0, 50);
-      persist({ notifications: next });
-      return next;
-    });
-    try { await apiPost("/notifications", { title: type, message, is_read: 0 }); } catch { }
-  }, [persist]);
+  const pushNotification = useCallback(async () => { await load({ silent: true }); }, [load]);
 
   const toggleAvailability = useCallback(async () => {
-    setProfile((prev) => {
-      const next = { ...prev, available: !prev.available };
-      persist({ profile: next });
-      return next;
+    const nextAvailable = !profile.available;
+    await authenticatedRequest("/volunteers/profile/", {
+      method: "PATCH",
+      body: JSON.stringify({ is_available: nextAvailable }),
     });
-    try { await apiPatch("/me/availability", { available: !profile.available }); } catch { }
-    pushNotification("status", `You're now marked as ${!profile.available ? "Available" : "Unavailable"} for pickups.`);
-  }, [profile.available, persist, pushNotification]);
+    setProfile((current) => ({ ...current, available: nextAvailable }));
+    await load({ silent: true });
+  }, [load, profile.available]);
 
-  // Saves edits made to the Profile tab's name/phone fields — same
-  // local-persist + best-effort-API pattern as toggleAvailability above.
   const updateProfile = useCallback(async (patch) => {
-    let next;
-    setProfile((prev) => {
-      next = { ...prev, ...patch };
-      persist({ profile: next });
-      return next;
+    const updated = await authenticatedRequest("/auth/profile/", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
     });
-    try { await apiPatch("/me", patch); } catch { }
-  }, [persist]);
+    setProfile((current) => ({ ...current, name: updated.name, phone: updated.phone }));
+  }, []);
 
   const acceptPickup = useCallback(async (pickupId) => {
-    const pickup = available.find((p) => p.id === pickupId);
-    if (!pickup) return;
-    const task = {
-      ...pickup, status: "Assigned", acceptedAt: new Date().toISOString(),
-      timeline: [{ status: "Assigned", at: new Date().toISOString() }]
-    };
-    const nextAvailable = available.filter((p) => p.id !== pickupId);
-    const nextTasks = [task, ...tasks];
-    setAvailable(nextAvailable);
-    setTasks(nextTasks);
-    persist({ pool: nextAvailable, tasks: nextTasks });
-    try { await apiPost(`/pickups/${pickupId}/accept`, {}); } catch { }
-    pushNotification("task", `Pickup accepted: ${pickup.food} from ${pickup.provider?.name || "provider"}.`);
-  }, [available, tasks, persist, pushNotification]);
+    await authenticatedRequest(`/volunteers/tasks/${pickupId}/accept/`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    await load({ silent: true });
+  }, [load]);
 
   const advanceTaskStatus = useCallback(async (taskId) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const action = STATUS_ACTION[task.status];
-    if (!action) return;
-    const nextStatus = action.next;
-    const stamped = {
-      ...task, status: nextStatus, updatedAt: new Date().toISOString(),
-      timeline: [...(task.timeline || []), { status: nextStatus, at: new Date().toISOString() }]
-    };
+    const task = tasks.find((item) => item.id === taskId);
+    const action = task && STATUS_ACTION[task.status];
+    if (!task || !action) return;
+    const backendStatus = {
+      "Pickup Started": "PICKUP_STARTED",
+      "In Transit": "IN_TRANSIT",
+    }[action.next];
+    if (!backendStatus) throw new Error("This step requires QR verification, which is not available in the current interface.");
+    await authenticatedRequest(`/volunteers/tasks/${taskId}/status/`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: backendStatus }),
+    });
+    await load({ silent: true });
+  }, [load, tasks]);
 
-    if (nextStatus === "Completed") {
-      const nextTasks = tasks.filter((t) => t.id !== taskId);
-      const completedEntry = { ...stamped, completedAt: new Date().toISOString() };
-      const nextHistory = [completedEntry, ...history];
-      setTasks(nextTasks);
-      setHistory(nextHistory);
-      persist({ tasks: nextTasks, history: nextHistory });
-      pushNotification("complete", `Task completed: ${task.food} delivered to ${task.receivingOrg?.name || "organization"}.`);
-    } else {
-      const nextTasks = tasks.map((t) => (t.id === taskId ? stamped : t));
-      setTasks(nextTasks);
-      persist({ tasks: nextTasks });
-      pushNotification("task", `${task.food}: status updated to "${nextStatus}".`);
-    }
-    try { await apiPatch(`/tasks/${taskId}/status`, { status: nextStatus }); } catch { }
-  }, [tasks, history, persist, pushNotification]);
+  const verifyTaskStage = useCallback(async (taskId, token, stage) => {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) throw new Error("Pickup task is no longer active.");
+    await authenticatedRequest("/donations/qr/verify/", {
+      method: "POST",
+      body: JSON.stringify({ donation_id: task.donation, token, stage }),
+    });
+    await load({ silent: true });
+  }, [load, tasks]);
 
   const markAllRead = useCallback(async () => {
-    setNotifications((prev) => {
-      persist({ notifications: [] });
-      return [];
-    });
-  }, [persist]);
+    await authenticatedRequest("/notifications/read-all/", { method: "POST", body: JSON.stringify({}) });
+    await load({ silent: true });
+  }, [load]);
 
   const stats = useMemo(() => {
-    const mealsRescued = history.reduce((s, h) => s + (Number(h.mealsCount) || 0), 0);
-    const foodTransportedKg = history.reduce((s, h) => s + (Number(h.foodWeightKg) || 0), 0);
-    const orgsServed = new Set(history.map((h) => h.receivingOrg?.name).filter(Boolean)).size;
-    const rescuePoints = history.reduce((s, h) => s + POINTS_PER_TASK + (Number(h.mealsCount) || 0) * POINTS_PER_MEAL, 0);
+    const mealsRescued = history.reduce((sum, task) => sum + (Number(task.people_served) || 0), 0);
+    const foodTransportedKg = history.reduce((sum, task) => {
+      const quantity = Number(task.quantity);
+      if (!Number.isFinite(quantity)) return sum;
+      if (task.quantity_unit === "kg") return sum + quantity;
+      if (task.quantity_unit === "g") return sum + quantity / 1000;
+      if (task.quantity_unit === "lb") return sum + quantity * 0.45359237;
+      return sum;
+    }, 0);
+    const orgsServed = new Set(history.map((task) => task.receivingOrg?.name).filter(Boolean)).size;
     return {
       activePickups: tasks.length,
-      completedPickups: history.length,
-      mealsRescued, foodTransportedKg, orgsServed, rescuePoints,
+      completedPickups: history.filter((task) => task.status === "Delivered" || task.status === "Completed").length,
+      mealsRescued,
+      foodTransportedKg: Number(foodTransportedKg.toFixed(2)),
+      orgsServed,
+      rescuePoints: rewardsPoints,
     };
-  }, [tasks, history]);
+  }, [history, rewardsPoints, tasks]);
 
   return {
-    loading, live, profile, available, tasks, notifications, history, stats,
-    toggleAvailability, updateProfile, acceptPickup, advanceTaskStatus, markAllRead, pushNotification, reload: load,
+    loading, live, error, profile, available, tasks, notifications, history, stats,
+    toggleAvailability, updateProfile, acceptPickup, advanceTaskStatus, verifyTaskStage, markAllRead, pushNotification, reload: load,
   };
 }
-
 /* ============================================================
    HEADER
 ============================================================= */
@@ -5266,7 +4913,7 @@ function PickupCard({ pickup, onAccept, accepting }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 10 }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 15.5 }}>{pickup.food}</div>
-          <div style={{ fontSize: 13, color: T.inkSoft }}>{pickup.quantity}</div>
+          <div style={{ fontSize: 13, color: T.inkSoft }}>{pickup.quantityDisplay}</div>
         </div>
         {pickup.distanceKm != null && <VDPill tone="gold">{pickup.distanceKm.toFixed(1)} km</VDPill>}
       </div>
@@ -5275,7 +4922,7 @@ function PickupCard({ pickup, onAccept, accepting }) {
         <div style={{ display: "flex", gap: 6, alignItems: "start" }}><MapPin size={14} style={{ marginTop: 1, flexShrink: 0 }} /> <span><b style={{ color: T.ink }}>{pickup.receivingOrg?.name || "Organization"}</b><br />{pickup.receivingOrg?.address}</span></div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: T.inkSoft }}>
-        <Clock size={14} /> Pickup {fmtTime(pickup.pickupTime)}
+        <Clock size={14} /> Task assigned {fmtTime(pickup.assigned_at)}
       </div>
       <VDPrimaryButton icon={CheckCircle2} disabled={accepting} onClick={() => onAccept(pickup.id)} style={{ marginTop: 4 }}>
         {accepting ? "Accepting…" : "Accept Pickup"}
@@ -5309,23 +4956,55 @@ function TaskStepper({ status }) {
     </div>
   );
 }
-function TaskCard({ task, onAdvance, advancing, onTrack }) {
+function TaskCard({ task, onAdvance, onVerify, advancing, onTrack }) {
   const action = STATUS_ACTION[task.status];
+  const verificationStage = task.status === "Pickup Started" ? "PICKUP" : task.status === "In Transit" ? "DELIVERY" : null;
+  const [verificationToken, setVerificationToken] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const verify = async () => {
+    setVerifying(true);
+    setVerificationError("");
+    try {
+      await onVerify(task.id, verificationToken.trim(), verificationStage);
+      setVerificationToken("");
+    } catch (error) {
+      setVerificationError(error.message || "QR verification failed.");
+    } finally {
+      setVerifying(false);
+    }
+  };
   return (
     <Card style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 16 }}>{task.food}</div>
-          <div style={{ fontSize: 13, color: T.inkSoft }}>{task.quantity} · {task.provider?.name} → {task.receivingOrg?.name}</div>
+          <div style={{ fontSize: 13, color: T.inkSoft }}>{task.quantityDisplay} · {task.provider?.name} → {task.receivingOrg?.name}</div>
         </div>
         <VDPill tone={task.status === "Delivered" ? "primary" : "accent"}>{task.status}</VDPill>
       </div>
       <TaskStepper status={task.status} />
-      {action && (
+      {action && !verificationStage && (
         <div style={{ fontSize: 12.5, color: T.inkSoft }}>{action.hint}</div>
       )}
+      {verificationStage && (
+        <div style={{ background: T.base, border: `1px solid ${T.sand}`, borderRadius: 12, padding: 12 }}>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+            {verificationStage === "PICKUP" ? "Pickup verification code" : "Delivery verification code"}
+          </label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={verificationToken} onChange={(event) => setVerificationToken(event.target.value)} autoComplete="off"
+              placeholder="Enter code provided by donor or NGO" className="rq-focus"
+              style={{ flex: 1, minWidth: 0, padding: "9px 10px", border: `1px solid ${T.sand}`, borderRadius: 9 }} />
+            <VDPrimaryButton disabled={verifying || !verificationToken.trim()} onClick={verify}>
+              {verifying ? "Verifying…" : "Verify"}
+            </VDPrimaryButton>
+          </div>
+          {verificationError && <div role="alert" style={{ color: T.danger, fontSize: 12, marginTop: 6 }}>{verificationError}</div>}
+        </div>
+      )}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {action && (
+        {action && !verificationStage && (
           <VDPrimaryButton icon={action.icon} disabled={advancing} onClick={() => onAdvance(task.id)}>
             {advancing ? "Updating…" : action.label}
           </VDPrimaryButton>
@@ -5449,9 +5128,22 @@ function VolunteerDashboard({ go, user, onSignOut }) {
   const [acceptingId, setAcceptingId] = useState(null);
   const [advancingId, setAdvancingId] = useState(null);
   const [trackTaskId, setTrackTaskId] = useState(null);
+  const [actionError, setActionError] = useState("");
 
-  const handleAccept = async (id) => { setAcceptingId(id); await data.acceptPickup(id); setAcceptingId(null); };
-  const handleAdvance = async (id) => { setAdvancingId(id); await data.advanceTaskStatus(id); setAdvancingId(null); };
+  const handleAccept = async (id) => {
+    setAcceptingId(id);
+    setActionError("");
+    try { await data.acceptPickup(id); }
+    catch (error) { setActionError(error.message || "Could not accept pickup."); }
+    finally { setAcceptingId(null); }
+  };
+  const handleAdvance = async (id) => {
+    setAdvancingId(id);
+    setActionError("");
+    try { await data.advanceTaskStatus(id); }
+    catch (error) { setActionError(error.message || "Could not update task."); }
+    finally { setAdvancingId(null); }
+  };
   const goTrack = (id) => { setTrackTaskId(id); setTab("track"); };
 
   // Profile tab — editable name/phone fields. Kept in local state (rather
@@ -5467,8 +5159,15 @@ function VolunteerDashboard({ go, user, onSignOut }) {
   }, [data.profile.name, data.profile.phone]);
   const saveProfile = async () => {
     setSavingProfile(true);
-    await data.updateProfile({ name: editName.trim(), phone: editPhone.trim() });
-    setSavingProfile(false);
+    setActionError("");
+    try { await data.updateProfile({ name: editName.trim(), phone: editPhone.trim() }); }
+    catch (error) { setActionError(error.message || "Could not save profile."); }
+    finally { setSavingProfile(false); }
+  };
+  const handleAvailabilityToggle = async () => {
+    setActionError("");
+    try { await data.toggleAvailability(); }
+    catch (error) { setActionError(error.message || "Could not update availability."); }
   };
 
   const unread = data.notifications.filter((n) => !n.read).length;
@@ -5482,6 +5181,11 @@ function VolunteerDashboard({ go, user, onSignOut }) {
       <VolunteerHeader tab={tab} setTab={setTab} go={go} onSignOut={onSignOut || (() => { })} unread={unread} />
 
       <div style={{ width: "100%", padding: "28px 24px 60px" }}>
+        {(actionError || data.error) && (
+          <div role="alert" style={{ marginBottom: 16, padding: 12, borderRadius: 10, background: "#FBE4E4", color: T.danger }}>
+            {actionError || data.error}
+          </div>
+        )}
         {/* ---------------- DASHBOARD ---------------- */}
         {tab === "dashboard" && (
           <div className="vd-fadeUp" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -5490,7 +5194,7 @@ function VolunteerDashboard({ go, user, onSignOut }) {
                 <div style={{ fontSize: 13, color: T.inkSoft, fontWeight: 600 }}>Welcome back,</div>
                 <h1 style={{ fontFamily: fontDisplay, fontSize: 30, margin: 0, color: T.ink }}>{firstName} 👋</h1>
               </div>
-              <button onClick={data.toggleAvailability} style={{
+              <button onClick={handleAvailabilityToggle} style={{
                 display: "inline-flex", alignItems: "center", gap: 8, border: `1.5px solid ${data.profile.available ? T.primary : T.sand}`,
                 background: data.profile.available ? T.primaryL : T.white, color: data.profile.available ? T.primaryD : T.inkSoft,
                 borderRadius: 999, padding: "9px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer",
@@ -5583,7 +5287,7 @@ function VolunteerDashboard({ go, user, onSignOut }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {data.tasks.map((t) => (
-                  <TaskCard key={t.id} task={t} onAdvance={handleAdvance} advancing={advancingId === t.id} onTrack={goTrack} />
+                  <TaskCard key={t.id} task={t} onAdvance={handleAdvance} onVerify={data.verifyTaskStage} advancing={advancingId === t.id} onTrack={goTrack} />
                 ))}
               </div>
             )}
@@ -5676,7 +5380,7 @@ function VolunteerDashboard({ go, user, onSignOut }) {
                 <InputField icon={User} label="Full name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Your name" />
                 <InputField icon={Phone} label="Phone" type="tel" inputMode="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Your phone number" />
                 <VDPrimaryButton icon={savingProfile ? Loader2 : CheckCircle2} disabled={savingProfile} onClick={saveProfile}>{savingProfile ? "Saving…" : "Save Profile"}</VDPrimaryButton>
-                <VDGhostButton onClick={data.toggleAvailability}>{data.profile.available ? "Set Unavailable" : "Set Available"}</VDGhostButton>
+                <VDGhostButton onClick={handleAvailabilityToggle}>{data.profile.available ? "Set Unavailable" : "Set Available"}</VDGhostButton>
               </Card>
               <Card>
                 <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14 }}>Your Impact</div>
@@ -5766,17 +5470,19 @@ export default function ResQBiteApp() {
   }, []);
   // Track which donation is being viewed on the tracking page
   const [trackingDonationId, setTrackingDonationId] = useState(null);
-  // A signed-in user's monetary-donation history. Seeded with sample past
-  // donations for demo purposes (same convention as ORGS/ACTIVITY/WEEKLY
-  // above) — new donations are only appended here once a real payment
-  // provider confirms success (see DonateUsPage), never fabricated.
-  const [donations, setDonations] = useState(SEED_DONATIONS);
-  // Organization directory shown on the Organizations page and used by
-  // search/filter there. Seeded with the sample ORGS list; newly created
-  // organization accounts (via Signup) are appended here so they appear
-  // in the directory immediately — never a separate hardcoded list.
-  const [orgs, setOrgs] = useState(ORGS);
+  const [foodDonations, setFoodDonations] = useState([]);
   const { toasts, push } = useToasts();
+  useEffect(() => {
+    let cancelled = false;
+    if (!isLoggedIn || !["donor", "org"].includes(user?.role)) {
+      setFoodDonations([]);
+      return () => { cancelled = true; };
+    }
+    authenticatedRequest("/donations/my/")
+      .then((response) => { if (!cancelled) setFoodDonations(rowsFromResponse(response)); })
+      .catch(() => { if (!cancelled) setFoodDonations([]); });
+    return () => { cancelled = true; };
+  }, [isLoggedIn, page, user?.id, user?.role]);
   // Every navigation (footer links, nav links, buttons, "go" calls
   // anywhere in the app) goes through this single setter, so scrolling
   // to the very top — header included — on every page change is
@@ -5794,8 +5500,8 @@ export default function ResQBiteApp() {
       // donation (or their most recent donation of any status if none
       // are still in progress) so those generic entry points behave
       // like "take me to what I'm currently tracking".
-      const active = donations.find((d) => d.status !== "Delivered" && d.status !== "Cancelled");
-      const fallback = active || donations[0];
+      const active = foodDonations.find((d) => !["COMPLETED", "CANCELLED"].includes(String(d.status).toUpperCase()));
+      const fallback = active || foodDonations[0];
       if (fallback) setTrackingDonationId(fallback.id);
     }
     setPage(p);
@@ -5816,16 +5522,19 @@ export default function ResQBiteApp() {
   useEffect(() => {
     document.title = PAGE_TITLES[page] || "ResQBite";
   }, [page]);
-  const signIn = (userData) => { setIsLoggedIn(true); setUser(userData || DEFAULT_USER); };
+  const signIn = (userData) => {
+    if (!userData) return;
+    setIsLoggedIn(true);
+    setUser(userData);
+  };
   const signOut = () => {
     localStorage.removeItem("resqbite_token");
     sessionStorage.removeItem("resqbite_token");
     setIsLoggedIn(false);
     setUser(null);
+    setFoodDonations([]);
     go("landing");
   };
-  const addDonation = (d) => setDonations((prev) => [d, ...prev]);
-  const addOrg = (o) => setOrgs((prev) => [o, ...prev]);
   const notificationCenter = useNotificationCenter(user, isLoggedIn);
 
   // Dashboard is an authenticated-only page — if there's no signed-in
@@ -5833,7 +5542,7 @@ export default function ResQBiteApp() {
   const pages = {
     landing: <Landing go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     login: <Login go={go} toast={push} onSignIn={signIn} />,
-    signup: <Signup go={go} toast={push} onSignIn={signIn} addOrg={addOrg} />,
+    signup: <Signup go={go} toast={push} onSignIn={signIn} />,
     donate: <DonatePage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     tracking: <TrackingPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} trackingDonationId={trackingDonationId} />,
     dashboard: isLoggedIn
@@ -5856,7 +5565,12 @@ export default function ResQBiteApp() {
         ? <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />
         : <DashboardRedirect user={user} go={go} />
       : <Login go={go} toast={push} onSignIn={signIn} />,
-    organizations: <OrganizationsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} orgs={orgs} />,
+    "admin-dashboard": isLoggedIn
+      ? user?.role === "admin"
+        ? <DashboardPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />
+        : <DashboardRedirect user={user} go={go} />
+      : <Login go={go} toast={push} onSignIn={signIn} />,
+    organizations: <OrganizationsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     about: <AboutPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     corporate: <CorporatePage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     careers: <CareersPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
@@ -5871,7 +5585,7 @@ export default function ResQBiteApp() {
     explore: <ExplorePage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     news: <NewsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     "impact-report": <ImpactReportPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
-    "donate-us": <DonateUsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} user={user} addDonation={addDonation} />,
+    "donate-us": <DonateUsPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} user={user} />,
     "available-food": <AvailableFoodPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
     "org-history": <OrgHistoryPage go={go} toast={push} isLoggedIn={isLoggedIn} onSignOut={signOut} />,
   };

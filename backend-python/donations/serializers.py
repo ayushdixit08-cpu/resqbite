@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 
 from common.services import validate_image
+from organizations.models import Organization
 from .models import Donation, DonationImage, DonationRequest, FoodSafetyChecklist
 
 
@@ -36,16 +37,27 @@ class DonationSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
     image_details = DonationImageSerializer(source="images", many=True, read_only=True)
     donor_name = serializers.CharField(source="donor.name", read_only=True)
+    organization_name = serializers.CharField(source="organization.name", read_only=True, default="")
+    organization = serializers.PrimaryKeyRelatedField(
+        queryset=Organization.objects.filter(verification_status=Organization.VERIFICATION_VERIFIED),
+        required=True,
+    )
 
     class Meta:
         model = Donation
         fields = (
-            "id", "donor", "donor_name", "organization", "food_name", "category", "food_type",
+            "id", "donor", "donor_name", "organization", "organization_name", "food_name", "category", "food_type",
             "quantity", "quantity_unit", "people_served", "prepared_at", "expires_at",
             "pickup_address", "latitude", "longitude", "special_instructions", "status",
             "food_safety", "images", "image_details", "created_at", "updated_at",
         )
-        read_only_fields = ("id", "donor", "organization", "status", "created_at", "updated_at")
+        read_only_fields = ("id", "donor", "status", "created_at", "updated_at")
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if self.instance is not None:
+            fields["organization"].read_only = True
+        return fields
 
     def validate(self, attrs):
         prepared_at = attrs.get("prepared_at", getattr(self.instance, "prepared_at", None))
@@ -66,11 +78,12 @@ class DonationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         checklist_data = validated_data.pop("food_safety")
         images = validated_data.pop("images", [])
-        donation = Donation.objects.create(**validated_data)
-        FoodSafetyChecklist.objects.create(donation=donation, **checklist_data)
-        from .models import DonationImage
+        from django.db import transaction
 
-        DonationImage.objects.bulk_create([DonationImage(donation=donation, image=image) for image in images])
+        with transaction.atomic():
+            donation = Donation.objects.create(**validated_data)
+            FoodSafetyChecklist.objects.create(donation=donation, **checklist_data)
+            DonationImage.objects.bulk_create([DonationImage(donation=donation, image=image) for image in images])
         return donation
 
     def update(self, instance, validated_data):

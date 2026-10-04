@@ -15,6 +15,7 @@ class Notification(models.Model):
         ("EXPIRY_REMINDER", "Expiry reminder"),
         ("VOLUNTEER_ASSIGNMENT", "Volunteer assignment"),
         ("EMERGENCY_REQUEST", "Emergency request"),
+        ("PICKUP_AVAILABLE", "Pickup available"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -20,7 +20,6 @@ from organizations.models import Organization
 from pickups.models import PickupTask
 from tracking.models import TrackingEvent
 from complaints.fraud_service import inspect_donation
-from rewards.services import award_points
 
 from .matching_service import recommend_organizations
 from .models import Donation, DonationRequest, QRVerification
@@ -46,7 +45,7 @@ class DonationViewSet(ModelViewSet):
                 donations = donations.filter(organization=org)
             else:
                 donations = donations.filter(
-                    Q(status=Donation.STATUS_PENDING, expires_at__gt=now)
+                    Q(status=Donation.STATUS_PENDING, organization__isnull=True, expires_at__gt=now)
                     | Q(organization=org)
                 )
         elif user.role != User.ROLE_ADMIN:
@@ -65,16 +64,35 @@ class DonationViewSet(ModelViewSet):
             raise PermissionDenied("Only donors can create donations.")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        donation = serializer.save(donor=request.user)
-        TrackingEvent.objects.create(donation=donation, status="DONATION_CREATED", actor=request.user)
-        inspect_donation(donation)
-        Notification.objects.create(
-            recipient=request.user,
-            notification_type="DONATION_CREATED",
-            title="Donation created",
-            message=f"{donation.food_name} is now available.",
-            data={"donation_id": str(donation.id)},
-        )
+        with transaction.atomic():
+            donation = serializer.save(donor=request.user)
+            organization = donation.organization
+            PickupTask.objects.create(
+                donation=donation,
+                organization=organization,
+                pickup_address=donation.pickup_address,
+                pickup_latitude=donation.latitude,
+                pickup_longitude=donation.longitude,
+                delivery_address=organization.address,
+                delivery_latitude=organization.latitude,
+                delivery_longitude=organization.longitude,
+            )
+            TrackingEvent.objects.create(donation=donation, status="DONATION_CREATED", actor=request.user)
+            inspect_donation(donation)
+            Notification.objects.create(
+                recipient=request.user,
+                notification_type="DONATION_CREATED",
+                title="Donation created",
+                message=f"{donation.food_name} is available for volunteer pickup.",
+                data={"donation_id": str(donation.id)},
+            )
+            Notification.objects.create(
+                recipient=organization.user,
+                notification_type="PICKUP_AVAILABLE",
+                title="Incoming food donation",
+                message=f"{donation.food_name} is on its way to your organization once a volunteer accepts the pickup.",
+                data={"donation_id": str(donation.id)},
+            )
         return success_response(self.get_serializer(donation).data, "Donation created successfully.", status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -96,8 +114,8 @@ class DonationViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def my(self, request):
-        if request.user.role != User.ROLE_DONOR:
-            raise PermissionDenied("Only donors can view their donations.")
+        if request.user.role not in {User.ROLE_DONOR, User.ROLE_NGO}:
+            raise PermissionDenied("Only donors and NGOs can view their donations.")
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -119,7 +137,13 @@ class DonationViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def search(self, request):
-        queryset = Donation.objects.filter(status=Donation.STATUS_PENDING, expires_at__gt=timezone.now())
+        if request.user.role not in {User.ROLE_NGO, User.ROLE_ADMIN}:
+            raise PermissionDenied("Only NGO or administrator accounts can browse unassigned donations.")
+        queryset = Donation.objects.filter(
+            status=Donation.STATUS_PENDING,
+            organization__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
         if request.query_params.get("category"):
             queryset = queryset.filter(category__iexact=request.query_params["category"])
         if request.query_params.get("food_type"):
@@ -137,9 +161,12 @@ class DonationViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def nearby(self, request):
+        if request.user.role not in {User.ROLE_NGO, User.ROLE_ADMIN}:
+            raise PermissionDenied("Only NGO or administrator accounts can browse unassigned donations.")
         latitude, longitude, radius = parse_nearby_parameters(request.query_params)
         queryset = Donation.objects.filter(
             status=Donation.STATUS_PENDING,
+            organization__isnull=True,
             expires_at__gt=timezone.now(),
             latitude__isnull=False,
             longitude__isnull=False,
@@ -179,6 +206,47 @@ class DonationViewSet(ModelViewSet):
             inspect_donation(donation)
             TrackingEvent.objects.create(donation=donation, status="CANCELLED", actor=request.user)
         return success_response(self.get_serializer(donation).data, "Donation cancelled.")
+
+    @action(detail=True, methods=["post"])
+    def receive(self, request, pk=None):
+        if request.user.role != User.ROLE_NGO:
+            raise PermissionDenied("Only NGO accounts can confirm receipt.")
+        with transaction.atomic():
+            donation = Donation.objects.select_for_update(of=("self",)).select_related("organization").get(
+                pk=self.get_object().pk
+            )
+            if donation.organization is None or donation.organization.user_id != request.user.id:
+                raise PermissionDenied("This donation is not assigned to your organization.")
+            task = PickupTask.objects.select_for_update().filter(donation=donation).first()
+            if task is None or task.status != PickupTask.STATUS_DELIVERED:
+                raise ValidationError("The assigned volunteer must deliver this donation before receipt.")
+            if donation.status != Donation.STATUS_DELIVERED:
+                raise ValidationError("Only delivered donations can be received.")
+            donation.status = Donation.STATUS_COMPLETED
+            donation.save(update_fields=["status", "updated_at"])
+            TrackingEvent.objects.create(donation=donation, status="COMPLETED", actor=request.user)
+            from rewards.services import award_points
+
+            award_points(donation.donor, 10, "DONATION_DELIVERED", donation.id)
+            if task.volunteer_id:
+                award_points(task.volunteer, 20, "DONATION_DELIVERED", donation.id)
+            award_points(donation.organization.user, 10, "DONATION_RECEIVED", donation.id)
+            Notification.objects.create(
+                recipient=donation.donor,
+                notification_type="FOOD_DELIVERED",
+                title="Donation received",
+                message=f"{donation.food_name} was received by {donation.organization.name}.",
+                data={"donation_id": str(donation.id)},
+            )
+            if task.volunteer_id:
+                Notification.objects.create(
+                    recipient=task.volunteer,
+                    notification_type="FOOD_DELIVERED",
+                    title="Delivery complete",
+                    message=f"{donation.food_name} was received by {donation.organization.name}.",
+                    data={"donation_id": str(donation.id)},
+                )
+        return success_response(self.get_serializer(donation).data, "Donation receipt confirmed.")
 
     @action(detail=True, methods=["get"], url_path="recommendations")
     def recommendations(self, request, pk=None):
@@ -233,6 +301,8 @@ class DonationRequestViewSet(ModelViewSet):
         donation = serializer.validated_data["donation"]
         if donation.status != Donation.STATUS_PENDING or donation.expires_at <= timezone.now():
             raise ValidationError({"donation": "This donation is no longer available."})
+        if donation.organization_id and donation.organization_id != organization.id:
+            raise PermissionDenied("This donation is assigned to another organization.")
         try:
             with transaction.atomic():
                 request_obj = serializer.save(organization=organization)
@@ -262,15 +332,17 @@ class DonationRequestViewSet(ModelViewSet):
             donation.status = Donation.STATUS_ACCEPTED
             donation.organization = organization
             donation.save(update_fields=["status", "organization", "updated_at"])
-            PickupTask.objects.create(
+            PickupTask.objects.get_or_create(
                 donation=donation,
-                organization=organization,
-                pickup_address=donation.pickup_address,
-                pickup_latitude=donation.latitude,
-                pickup_longitude=donation.longitude,
-                delivery_address=organization.address,
-                delivery_latitude=organization.latitude,
-                delivery_longitude=organization.longitude,
+                defaults={
+                    "organization": organization,
+                    "pickup_address": donation.pickup_address,
+                    "pickup_latitude": donation.latitude,
+                    "pickup_longitude": donation.longitude,
+                    "delivery_address": organization.address,
+                    "delivery_latitude": organization.latitude,
+                    "delivery_longitude": organization.longitude,
+                },
             )
             TrackingEvent.objects.create(donation=donation, status="NGO_ACCEPTED", actor=request.user)
             Notification.objects.create(
@@ -369,20 +441,24 @@ class QRVerifyView(ModelViewSet):
                 verification.delivery_verified_at = now
                 task.status = PickupTask.STATUS_DELIVERED
                 task.completed_at = now
-                task.donation.status = Donation.STATUS_COMPLETED
+                task.donation.status = Donation.STATUS_DELIVERED
                 task.donation.save(update_fields=["status", "updated_at"])
                 profile = task.volunteer.volunteer_profile
                 profile.is_available = True
                 profile.save(update_fields=["is_available", "updated_at"])
                 TrackingEvent.objects.create(donation=task.donation, status="DELIVERED", actor=request.user)
-                award_points(task.donation.donor, 10, "DONATION_DELIVERED", task.donation_id)
-                award_points(task.volunteer, 20, "DONATION_DELIVERED", task.donation_id)
-                award_points(task.organization.user, 10, "DONATION_RECEIVED", task.donation_id)
+                Notification.objects.create(
+                    recipient=task.organization.user,
+                    notification_type="FOOD_DELIVERED",
+                    title="Food arrived",
+                    message=f"{task.donation.food_name} has arrived. Confirm receipt to complete the donation.",
+                    data={"donation_id": str(task.donation_id), "task_id": str(task.id)},
+                )
                 Notification.objects.create(
                     recipient=task.donation.donor,
                     notification_type="FOOD_DELIVERED",
                     title="Food delivered",
-                    message=f"{task.donation.food_name} was delivered.",
+                    message=f"{task.donation.food_name} was delivered to {task.organization.name}.",
                     data={"donation_id": str(task.donation_id)},
                 )
             verification.save(update_fields=["pickup_verified_at", "delivery_verified_at"])

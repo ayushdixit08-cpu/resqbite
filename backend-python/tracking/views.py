@@ -28,9 +28,27 @@ class DonationTrackingView(APIView):
         if not allowed:
             raise PermissionDenied()
         events = TrackingEvent.objects.filter(donation=donation).select_related("actor")
+        task = PickupTask.objects.select_related("organization", "volunteer").filter(donation=donation).first()
         return success_response({
             "donation_id": str(donation.id),
             "status": donation.status,
+            "donation": {
+                "id": str(donation.id),
+                "food_name": donation.food_name,
+                "quantity": donation.quantity,
+                "quantity_unit": donation.quantity_unit,
+                "expires_at": donation.expires_at,
+                "pickup_address": donation.pickup_address,
+            },
+            "organization": ({
+                "id": str(task.organization_id),
+                "name": task.organization.name,
+                "address": task.delivery_address,
+            } if task else None),
+            "volunteer": ({
+                "name": task.volunteer.name,
+                "phone": task.volunteer.phone,
+            } if task and task.volunteer_id else None),
             "events": TrackingEventSerializer(events, many=True, context={"request": request}).data,
         })
 
