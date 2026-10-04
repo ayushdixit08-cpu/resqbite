@@ -1045,6 +1045,145 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIResponse'
           description: ''
+  /api/donation-requests/:
+    get:
+      operationId: donation_requests_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - donation-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDonationRequestList'
+          description: ''
+    post:
+      operationId: donation_requests_create
+      tags:
+      - donation-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donation-requests/{id}/:
+    get:
+      operationId: donation_requests_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donation-requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donation-requests/{id}/accept/:
+    post:
+      operationId: donation_requests_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donation-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
+  /api/donation-requests/{id}/reject/:
+    post:
+      operationId: donation_requests_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - donation-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DonationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonationRequest'
+          description: ''
   /api/donations/:
     get:
       operationId: donations_list

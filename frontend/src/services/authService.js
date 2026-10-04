@@ -2,7 +2,16 @@ import { apiRequest, saveAuthToken, clearAuthToken } from "./api";
 
 export const authService = {
   login: (payload) => apiRequest("/auth/login/", { method: "POST", body: JSON.stringify(payload) }),
-  register: (payload) => apiRequest("/auth/register/", { method: "POST", body: JSON.stringify(payload) }),
+  register: (payload) => apiRequest("/auth/register/", {
+    method: "POST",
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      password: payload.password,
+      role: payload.role,
+      ...(payload.phone ? { phone: payload.phone } : {}),
+    }),
+  }),
   googleLogin: (idToken, rememberMe = false) => apiRequest("/auth/google", {
     method: "POST",
     body: JSON.stringify({ idToken, rememberMe }),

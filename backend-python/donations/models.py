@@ -106,6 +106,7 @@ class DonationRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(fields=["donation", "organization"], name="unique_donation_ngo_request"),
             models.UniqueConstraint(

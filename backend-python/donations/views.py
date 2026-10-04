@@ -14,7 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from accounts.models import User
 from common.responses import success_response
-from common.services import haversine_km
+from common.services import haversine_km, parse_nearby_parameters
 from notifications.models import Notification
 from organizations.models import Organization
 from pickups.models import PickupTask
@@ -137,14 +137,7 @@ class DonationViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def nearby(self, request):
-        try:
-            latitude = float(request.query_params["latitude"])
-            longitude = float(request.query_params["longitude"])
-            radius = float(request.query_params.get("radius", 25))
-            if radius <= 0 or radius > 500:
-                raise ValueError
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValidationError("Valid latitude, longitude, and radius (0-500 km) are required.") from exc
+        latitude, longitude, radius = parse_nearby_parameters(request.query_params)
         queryset = Donation.objects.filter(
             status=Donation.STATUS_PENDING,
             expires_at__gt=timezone.now(),

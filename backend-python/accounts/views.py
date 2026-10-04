@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.mail import send_mail
+from django.db import IntegrityError, transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, permissions, status
@@ -27,7 +28,16 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        try:
+            with transaction.atomic():
+                user = serializer.save()
+        except IntegrityError as exc:
+            if User.objects.filter(email__iexact=serializer.validated_data["email"]).exists():
+                raise ValidationError(
+                    {"email": "An account with this email already exists."},
+                    code="duplicate_email",
+                ) from exc
+            raise
         inspect_registration(user)
         refresh = RefreshToken.for_user(user)
         return success_response(

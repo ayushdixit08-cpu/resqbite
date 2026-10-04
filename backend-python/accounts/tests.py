@@ -1,5 +1,7 @@
-from django.urls import reverse
+from django.contrib.auth.hashers import check_password
 from rest_framework.test import APITestCase
+
+from accounts.models import User
 
 
 class AuthenticationAPITests(APITestCase):
@@ -19,6 +21,10 @@ class AuthenticationAPITests(APITestCase):
         self.assertIn("access", registration.data["data"])
         self.assertEqual(registration.data["data"]["user"]["role"], "DONOR")
         self.assertNotIn("password", registration.data["data"]["user"])
+        user = User.objects.get(email="donor@example.test")
+        self.assertTrue(check_password("A-strong-password-123", user.password))
+        self.assertEqual(registration.data["data"]["user"]["name"], user.name)
+        self.assertEqual(registration.data["data"]["user"]["email"], user.email)
 
         login = self.client.post(
             "/api/auth/login/",
@@ -40,6 +46,50 @@ class AuthenticationAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_duplicate_email_is_rejected_with_useful_error(self):
+        User.objects.create_user(
+            email="existing@example.test",
+            password="A-strong-password-123",
+            name="Existing User",
+        )
+
+        response = self.client.post(
+            "/api/auth/register/",
+            {
+                "email": "EXISTING@example.test",
+                "name": "Duplicate User",
+                "password": "Another-strong-password-123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+        self.assertIn("email", response.data["errors"])
+        self.assertEqual(User.objects.filter(email__iexact="existing@example.test").count(), 1)
+
+    def test_invalid_email_empty_name_weak_password_and_missing_fields_are_rejected(self):
+        invalid_payloads = [
+            {"email": "not-an-email", "name": "User", "password": "A-strong-password-123"},
+            {"email": "empty-name@example.test", "name": "   ", "password": "A-strong-password-123"},
+            {"email": "weak-password@example.test", "name": "User", "password": "weak"},
+            {"email": "missing-name@example.test", "password": "A-strong-password-123"},
+            {"name": "Missing email", "password": "A-strong-password-123"},
+            {"email": "missing-password@example.test", "name": "User"},
+        ]
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    "/api/auth/register/",
+                    payload,
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 400, response.data)
+                self.assertFalse(response.data["success"])
+
+        self.assertEqual(User.objects.count(), 0)
 
     def test_health_is_public(self):
         response = self.client.get("/api/health/")

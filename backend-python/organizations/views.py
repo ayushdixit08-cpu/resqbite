@@ -7,7 +7,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from common.permissions import IsAdminUserRole
 from common.responses import success_response
-from common.services import haversine_km
+from common.services import haversine_km, parse_nearby_parameters
 from .models import Organization
 from .serializers import OrganizationSerializer
 
@@ -86,14 +86,7 @@ class NearbyOrganizationsView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        try:
-            latitude = float(request.query_params["latitude"])
-            longitude = float(request.query_params["longitude"])
-            radius = float(request.query_params.get("radius", "25"))
-            if radius <= 0 or radius > 500:
-                raise ValueError
-        except (KeyError, TypeError, ValueError) as exc:
-            return Response({"detail": "Valid latitude, longitude, and radius (0-500 km) are required."}, status=status.HTTP_400_BAD_REQUEST)
+        latitude, longitude, radius = parse_nearby_parameters(request.query_params)
 
         nearby = []
         for organization in Organization.objects.filter(

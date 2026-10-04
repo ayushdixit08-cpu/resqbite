@@ -1,7 +1,30 @@
-from math import asin, cos, radians, sin, sqrt
+from math import asin, cos, isfinite, radians, sin, sqrt
 
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
+
+
+def parse_nearby_parameters(query_params):
+    try:
+        latitude = float(query_params["latitude"])
+        longitude = float(query_params["longitude"])
+        radius = float(query_params.get("radius", 25))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValidationError(
+            {"location": "Valid latitude, longitude, and radius are required."}
+        ) from exc
+
+    if (
+        not all(isfinite(value) for value in (latitude, longitude, radius))
+        or not -90 <= latitude <= 90
+        or not -180 <= longitude <= 180
+        or not 0 < radius <= 500
+    ):
+        raise ValidationError(
+            {"location": "Latitude must be between -90 and 90, longitude between -180 and 180, and radius between 0 and 500 km."}
+        )
+
+    return latitude, longitude, radius
 
 
 def haversine_km(latitude_a, longitude_a, latitude_b, longitude_b):

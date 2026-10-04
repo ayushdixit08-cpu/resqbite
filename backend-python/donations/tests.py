@@ -86,14 +86,15 @@ class DonationAPITests(APITestCase):
         )
         self.client.force_authenticate(ngo)
         request_response = self.client.post(
-            "/api/donations/requests/",
+            "/api/donation-requests/",
             {"donation": donation_id, "message": "We can receive this food."},
             format="json",
         )
         self.assertEqual(request_response.status_code, 201, request_response.data)
         request_id = request_response.data["data"]["id"]
+        self.assertEqual(self.client.get("/api/donation-requests/").status_code, 200)
 
-        accepted = self.client.post(f"/api/donations/requests/{request_id}/accept/", {}, format="json")
+        accepted = self.client.post(f"/api/donation-requests/{request_id}/accept/", {}, format="json")
         self.assertEqual(accepted.status_code, 200, accepted.data)
         task = PickupTask.objects.get(donation_id=donation_id)
         self.assertEqual(task.organization, organization)

@@ -14,7 +14,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   BarChart, Bar, CartesianGrid, PieChart, Pie, Cell
 } from "recharts";
-import { API_BASE_URL } from "./services/api";
+import { API_BASE_URL, formatApiError } from "./services/api";
 import { authService } from "./services/authService";
 import { mockTracking, mockDeliveryTasks, mockFoodDonations, mockAvailableFood } from "./data/mockData";
 
@@ -972,11 +972,6 @@ const ROLES = [
 // Fallback profile used when Login doesn't collect a name (demo only —
 // a real build reads this from the authenticated session).
 const DEFAULT_USER = { name: "Diksha Sharma", email: "diksha@example.com", phone: "+91 98765 43210", role: "donor" };
-// Storage key for the account record created at Signup, keyed by email —
-// lets Login look up the real role (donor/volunteer/org) that account was
-// created with, instead of assuming a single hardcoded role for everyone.
-const accountKey = (email) => `resqbite:account:${(email || "").trim().toLowerCase()}`;
-
 // Sample identity returned by the "Continue with Google" button. A real
 // integration would get this from Google's OAuth consent screen; here it
 // stands in for that so the button is actually functional in the demo
@@ -2980,20 +2975,17 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         email: email.trim(),
         password: pwd,
         role: role === "volunteer" ? "VOLUNTEER" : role === "org" ? "ORGANIZATION" : "DONOR",
-        location: role === "org" ? orgAddress : "",
-        bio: role === "org" ? orgName : "",
-        skills: "",
-        interests: "",
+        ...(role === "org" && orgPhone ? { phone: orgPhone.trim() } : {}),
       };
 
       const data = await authService.register(payload);
-      if (!data?.token || !data?.user) {
+      if (!(data?.access || data?.token) || !data?.user) {
         throw new Error("Account creation failed");
       }
 
-      localStorage.setItem("resqbite_token", data.token);
-      onSignIn?.(normalizeApiUser(data.user));
-      await storeSet(accountKey(email), data.user);
+      authService.saveToken(data.access || data.token);
+      const signedInUser = normalizeApiUser(data.user);
+      onSignIn?.(signedInUser);
       if (needsOrgStep) {
         const org = {
           id: orgName.trim().toLowerCase().replace(/\s+/g, "-") || `org-${Date.now()}`,
@@ -3004,10 +2996,10 @@ function Signup({ go, toast, onSignIn, addOrg }) {
         addOrg?.(org);
       }
       toast("Account created — welcome to ResQBite!");
-      go(dashboardForRole(normalizeApiUser(data.user)));
+      go(dashboardForRole(signedInUser));
     } catch (error) {
       console.error("Signup error:", error);
-      toast(error.message || "Could not create account", "error");
+      toast(formatApiError(error, "Could not create account"), "error");
     } finally {
       setSubmitting(false);
     }

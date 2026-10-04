@@ -16,7 +16,14 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Edit `.env` before starting. For PostgreSQL, create the configured database and role, then use `DB_ENGINE=postgresql`. SQLite is available only for local development when `DEBUG=True`; set `DB_ENGINE=sqlite3` to use it. Production refuses to start without a real `SECRET_KEY` and `CLOUDINARY_URL`.
+Edit `.env` before starting. PostgreSQL is the default database. To create the local role and database, connect to the PostgreSQL server as its administrator:
+
+```sql
+CREATE ROLE resqbite LOGIN PASSWORD 'replace-with-a-secret';
+CREATE DATABASE resqbite OWNER resqbite;
+```
+
+Set `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` in `.env` to match that database and role. Use a strong password and keep `.env` private. SQLite is available only for local development when `DEBUG=True`; set `DB_ENGINE=sqlite3` to use it. Production refuses to start without a real `SECRET_KEY` and `CLOUDINARY_URL`.
 
 ```powershell
 python manage.py check
@@ -44,7 +51,7 @@ Do not commit `.env` or production secrets. Use a real SMTP provider in producti
 | Authentication | `POST /auth/register/`, `/auth/login/`, `/auth/logout/`, `/auth/token/refresh/`; `GET /auth/me/`; `GET/PATCH /auth/profile/`; `/auth/password-reset/`; `/auth/email-verification/` |
 | NGOs | `GET /ngos/`, `/ngos/{id}/`, `/ngos/nearby/`; `POST/PATCH /ngos/profile/`; admin `POST /ngos/{id}/verify/` |
 | Donations | `GET/POST /donations/`, `GET/PATCH/DELETE /donations/{id}/`, `/donations/my/`, `/donations/history/`, `/donations/search/`, `/donations/nearby/`, `/donations/{id}/cancel/`, `/donations/{id}/status/` |
-| NGO requests | `POST/GET /donations/requests/`, `GET /donations/requests/{id}/`, `POST /donations/requests/{id}/accept/` or `/reject/` |
+| NGO requests | `POST/GET /donation-requests/`, `GET /donation-requests/{id}/`, `POST /donation-requests/{id}/accept/` or `/reject/`; the legacy `/donations/requests/` routes remain available |
 | Volunteers and delivery | `/volunteers/profile/`, `/volunteers/nearby/`, `/volunteers/tasks/`, `/volunteers/tasks/{id}/accept/`, `/volunteers/tasks/{id}/status/`, `/volunteers/tasks/history/`; `/pickups/` |
 | Tracking and QR | `GET /tracking/donation/{id}/`, `GET /tracking/{event_id}/`, `POST /tracking/location/`; `POST /donations/qr/{id}/generate/`, `/donations/qr/verify/` |
 | Notifications and reviews | `/notifications/`, `/notifications/{id}/read/`, `/notifications/read-all/`; `/reviews/`, `/reviews/user/{id}/`, `/reviews/donation/{id}/` |

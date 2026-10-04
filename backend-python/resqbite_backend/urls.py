@@ -17,6 +17,7 @@ urlpatterns = [
     path("api/ngos/", include("organizations.urls")),
     path("api/organizations/", include("organizations.urls")),
     path("api/donations/", include("donations.urls")),
+    path("api/donation-requests/", include("donations.request_urls")),
     path("api/pickups/", include("pickups.urls")),
     path("api/volunteers/", include("volunteers.urls")),
     path("api/tracking/", include("tracking.urls")),

@@ -6,6 +6,23 @@ from .models import VolunteerProfile
 
 
 class NearbyVolunteersPrivacyTests(APITestCase):
+    def test_nearby_rejects_invalid_coordinates_with_standard_error_envelope(self):
+        donor = User.objects.create_user(
+            email="donor@example.test",
+            password="Strong-test-password-123",
+            name="Donor",
+            role=User.ROLE_DONOR,
+        )
+        self.client.force_authenticate(user=donor)
+
+        response = self.client.get(
+            "/api/volunteers/nearby/?latitude=91&longitude=0&radius=10"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.data["success"])
+        self.assertIn("errors", response.data)
+
     def test_nearby_volunteer_response_omits_contact_and_exact_location(self):
         donor = User.objects.create_user(
             email="donor@example.test",

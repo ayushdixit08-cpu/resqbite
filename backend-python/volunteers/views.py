@@ -4,7 +4,7 @@ from common.views import ResQBiteAPIView as APIView
 
 from accounts.models import User
 from common.responses import success_response
-from common.services import haversine_km
+from common.services import haversine_km, parse_nearby_parameters
 from .models import VolunteerProfile
 from .serializers import VolunteerProfileSerializer
 
@@ -37,14 +37,7 @@ class NearbyVolunteersView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        try:
-            latitude = float(request.query_params["latitude"])
-            longitude = float(request.query_params["longitude"])
-            radius = float(request.query_params.get("radius", "25"))
-            if radius <= 0 or radius > 500:
-                raise ValueError
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValidationError("Valid latitude, longitude, and radius (0-500 km) are required.") from exc
+        latitude, longitude, radius = parse_nearby_parameters(request.query_params)
 
         profiles = VolunteerProfile.objects.filter(
             is_available=True,
