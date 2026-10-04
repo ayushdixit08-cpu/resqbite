@@ -1,7 +1,7 @@
 const configuredApiUrl = import.meta.env.VITE_API_BASE_URL
   || import.meta.env.VITE_API_URL
-  || "http://localhost:5000/api";
-export const API_BASE_URL = configuredApiUrl.replace(/\/+$/, "");
+  || (import.meta.env.DEV ? "http://localhost:5000/api" : "");
+export const API_BASE_URL = configuredApiUrl.trim().replace(/\/+$/, "");
 const apiResultCache = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -26,6 +26,11 @@ function buildHeaders(headers = {}, body) {
 }
 
 export async function apiRequest(path, options = {}) {
+  if (!API_BASE_URL) {
+    throw new ApiError(
+      "The Django API URL is not configured. Set VITE_API_BASE_URL to the deployed Django API."
+    );
+  }
   const url = `${API_BASE_URL}${path}`;
   const cacheable = (!options.method || options.method.toUpperCase() === "GET")
     && !path.startsWith("/auth/");
