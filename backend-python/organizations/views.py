@@ -15,7 +15,10 @@ from .serializers import OrganizationSerializer
 class OrganizationViewSet(ReadOnlyModelViewSet):
     serializer_class = OrganizationSerializer
     permission_classes = [permissions.AllowAny]
-    queryset = Organization.objects.filter(verification_status=Organization.VERIFICATION_VERIFIED).order_by("name")
+    queryset = Organization.objects.filter(
+        verification_status=Organization.VERIFICATION_VERIFIED,
+        user__is_active=True,
+    ).order_by("name")
 
     def get_queryset(self):
         if self.action == "verify":
@@ -91,6 +94,7 @@ class NearbyOrganizationsView(generics.GenericAPIView):
         nearby = []
         for organization in Organization.objects.filter(
             verification_status=Organization.VERIFICATION_VERIFIED,
+            user__is_active=True,
             latitude__isnull=False,
             longitude__isnull=False,
         ):

@@ -110,6 +110,27 @@ class DonationAPITests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Donation.objects.count(), 0)
 
+    def test_donor_cannot_select_verified_organization_with_inactive_user(self):
+        inactive_user = User.objects.create_user(
+            email="inactive-ngo@example.test",
+            name="Inactive NGO",
+            role=User.ROLE_NGO,
+            is_active=False,
+        )
+        inactive_organization = Organization.objects.create(
+            user=inactive_user,
+            name="Inactive verified NGO",
+            verification_status=Organization.VERIFICATION_VERIFIED,
+        )
+        payload = self.donation_payload()
+        payload["organization"] = str(inactive_organization.id)
+
+        response = self.client.post("/api/donations/", payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Donation.objects.count(), 0)
+        self.assertEqual(PickupTask.objects.count(), 0)
+
     def test_volunteer_first_delivery_requires_ngo_receipt_to_complete(self):
         donation_id = self.create_donation()
         task = PickupTask.objects.get(donation_id=donation_id)

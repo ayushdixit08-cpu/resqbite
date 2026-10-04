@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext, useMemo, useId } from "react";
 import {
   Menu, X, ChevronRight, MapPin, Clock, Users, Leaf,
   CheckCircle2, AlertCircle, Star, TrendingUp, Package, Truck, Bell,
   Search, Filter, Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight,
   Sparkles, Navigation, Phone, Award, BarChart3, Heart, ShieldCheck,
   Loader2, ArrowLeft, Utensils, Soup,
-  Box, XCircle, ScanLine, Timer, ThumbsUp,
+  Box, XCircle, Timer, ThumbsUp,
   LayoutGrid, PlusCircle, ChevronDown, Calendar, FileCheck2, Image as ImageIcon, Home, LogOut,
   Monitor, Rocket, Globe, CreditCard, Landmark, Smartphone, Wallet, Info,
   ListChecks, History as HistoryIcon
@@ -131,11 +131,11 @@ function rowsFromResponse(response) {
 }
 
 const api = {
-  analyticsOverview: () => apiRequest("/analytics/overview"),
-  analyticsWeekly: (days = 7) => apiRequest(`/analytics/weekly?days=${days}`),
-  analyticsFoodMix: () => apiRequest("/analytics/food-mix"),
-  analyticsStatusBreakdown: () => apiRequest("/analytics/status-breakdown"),
-  analyticsTopNgos: (limit = 5) => apiRequest(`/analytics/top-ngos?limit=${limit}`),
+  analyticsOverview: () => apiRequest("/analytics/overview/"),
+  analyticsWeekly: (days = 7) => apiRequest(`/analytics/weekly/?days=${days}`),
+  analyticsFoodMix: () => apiRequest("/analytics/food-mix/"),
+  analyticsStatusBreakdown: () => apiRequest("/analytics/status-breakdown/"),
+  analyticsTopNgos: (limit = 5) => apiRequest(`/analytics/top-ngos/?limit=${limit}`),
   donationTracking: async (id) => {
     const result = await authenticatedRequest(`/tracking/donation/${id}/`);
     const eventStatuses = {
@@ -416,11 +416,11 @@ function useOnScreen(threshold = 0.3) {
 
 function useReveal({ threshold = 0.18, rootMargin = "0px 0px -8% 0px" } = {}) {
   const ref = useRef(null);
-  const [inView, setInView] = useState(false);
+  const [inView, setInView] = useState(() => typeof IntersectionObserver === "undefined");
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (typeof IntersectionObserver === "undefined") { setInView(true); return; }
+    if (typeof IntersectionObserver === "undefined") return;
     const obs = new IntersectionObserver(
       ([entry]) => setInView(entry.isIntersecting),
       { threshold, rootMargin }
@@ -710,9 +710,7 @@ function orgActivityText(r) {
     default: return `${r.food} status updated to ${r.status}`;
   }
 }
-// `requests` is expected newest-first — same convention the rest of the
-// file uses for its sample activity feeds (no separate timestamp math
-// needed for a demo dataset).
+// `requests` are supplied newest-first by the organization data provider.
 function buildOrgActivity(requests, limit = 4) {
   return requests.slice(0, limit).map((r) => ({
     icon: ORG_ACTIVITY_ICONS[r.status] || Package,
@@ -737,7 +735,7 @@ function OrgDataProvider({ children }) {
   const { user, isLoggedIn } = useCurrentUser();
   const [requests, setRequests] = useState([]);
   const [organization, setOrganization] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => isLoggedIn && user?.role === "org");
   const [error, setError] = useState(null);
   const reload = useCallback(async () => {
     if (!isLoggedIn || user?.role !== "org") {
@@ -799,7 +797,13 @@ function OrgDataProvider({ children }) {
       setLoading(false);
     }
   }, [isLoggedIn, user?.role]);
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void reload();
+    });
+    return () => { active = false; };
+  }, [reload]);
   const value = useMemo(() => {
     const stats = computeOrgStats(requests);
     const weekly = computeOrgWeekly(requests);
@@ -865,9 +869,15 @@ function useNotificationCenter(user, isLoggedIn) {
   }, [isLoggedIn, user?.id]);
 
   useEffect(() => {
-    load();
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void load();
+    });
     const refreshId = isLoggedIn ? window.setInterval(load, 30000) : null;
-    return () => { if (refreshId) window.clearInterval(refreshId); };
+    return () => {
+      active = false;
+      if (refreshId) window.clearInterval(refreshId);
+    };
   }, [load, isLoggedIn]);
 
   const clearAll = useCallback(async () => {
@@ -926,9 +936,6 @@ const ROLES = [
   { key: "volunteer", label: "Volunteer", icon: Truck, sub: "Pick up & deliver food" },
   { key: "org", label: "Organization", icon: Building2, sub: "NGO, shelter, kitchen & more" },
 ];
-const WEEKLY = [];
-
-
 /* ============================================================
    SHARED PRIMITIVES
 ============================================================= */
@@ -1290,35 +1297,6 @@ function TopNav({ go, toast, page = "landing", isLoggedIn = false, onSignOut }) 
   );
 }
 
-function TopLeftBrand({ go }) {
-  return (
-    <div
-      onClick={() => go("landing")}
-      style={{ position: "fixed", left: 26, top: 24, zIndex: 100, cursor: "pointer", display: "flex", flexDirection: "column", gap: 5 }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: 13, background: `linear-gradient(135deg, ${T.primary}, ${T.primaryD})`,
-          display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
-          boxShadow: "0 8px 20px rgba(31,111,74,.4), inset 0 0 0 2px rgba(255,255,255,.18)"
-        }}>
-          <Leaf size={21} color={T.white} strokeWidth={2.4} />
-          <span className="rq-pulse-dot" style={{
-            position: "absolute", top: -3, right: -3, width: 10, height: 10, borderRadius: "50%",
-            background: T.gold, border: `2px solid ${T.base}`
-          }} />
-        </div>
-        <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 24, color: T.ink, letterSpacing: -0.4 }}>
-          ResQ<span style={{ color: T.accent, fontStyle: "italic" }}>Bite</span>
-        </span>
-      </div>
-      <span style={{ fontFamily: fontMono, fontSize: 10, fontWeight: 700, letterSpacing: 1.8, color: T.inkSoft, marginLeft: 52 }}>
-        FOOD RESCUE · LIVE
-      </span>
-    </div>
-  );
-}
-
 /* ============================================================
    NAV BARS
 ============================================================= */
@@ -1403,8 +1381,8 @@ function Landing({ go, toast, isLoggedIn, onSignOut }) {
 
 function FeatureGrid() {
   const feats = [
-    { icon: ScanLine, title: "AI freshness check", text: "Scan detects spoilage & estimates safe window." },
-    { icon: Navigation, title: "Live GPS tracking", text: "Real-time pickup & delivery status." },
+    { icon: FileCheck2, title: "Food safety checklist", text: "Donors confirm preparation, packaging, expiry, and food type before submitting." },
+    { icon: Navigation, title: "Delivery tracking", text: "Follow persisted pickup and delivery status updates." },
     { icon: Award, title: "Rewards & badges", text: "Earn points for every rescue." },
     { icon: ShieldCheck, title: "Verified organizations", text: "Every NGO admin-approved." },
   ];
@@ -1516,7 +1494,7 @@ function Footer({ go, toast }) {
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexWrap: "wrap", gap: 40, justifyContent: "space-between" }}>
         <div style={{ maxWidth: 220 }}>
           <div style={{ cursor: "pointer" }} onClick={() => go("landing")}><Logo /></div>
-          <p style={{ fontSize: 12, color: T.inkSoft, marginTop: 12 }}>© 2026 ResQBite. Prototype built for demonstration.</p>
+          <p style={{ fontSize: 12, color: T.inkSoft, marginTop: 12 }}>© 2026 ResQBite. All rights reserved.</p>
         </div>
 
         {cols.map((c) => (
@@ -1547,15 +1525,7 @@ function Footer({ go, toast }) {
         maxWidth: 1180, margin: "40px auto 0", borderTop: `1px solid ${T.sandD}`, padding: "20px 0 26px",
         display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 14
       }}>
-        <span style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>For a better experience, get the ResQBite app</span>
-        <div style={{ display: "flex", gap: 10 }}>
-          <div onClick={() => toast("App Store link (demo)")} style={{ background: T.ink, color: T.white, borderRadius: 10, padding: "8px 14px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <Phone size={14} /> Download on the App Store
-          </div>
-          <div onClick={() => toast("Google Play link (demo)")} style={{ background: T.ink, color: T.white, borderRadius: 10, padding: "8px 14px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <PlusCircle size={14} /> Get it on Google Play
-          </div>
-        </div>
+        <span style={{ fontWeight: 700, fontSize: 14, color: T.ink }}>ResQBite mobile apps are not available yet.</span>
       </div>
     </footer>
   );
@@ -2061,21 +2031,48 @@ function NewsPage({ go, toast, isLoggedIn, onSignOut }) {
 
 /* ---------- Impact Report ---------- */
 function ImpactReportPage({ go, toast, isLoggedIn, onSignOut }) {
-  const stats = [
-    { icon: Package, val: 12400, suffix: "+", label: "Meals rescued" },
-    { icon: Building2, val: 380, suffix: "", label: "Verified NGOs" },
-    { icon: Truck, val: 950, suffix: "+", label: "Successful deliveries" },
-    { icon: Users, val: 210, suffix: "+", label: "Active volunteers" },
-    { icon: Leaf, val: 3.1, suffix: "t", decimals: 1, label: "CO₂ emissions saved" },
-    { icon: TrendingUp, val: 96, suffix: "%", label: "Donation completion rate" },
-  ];
+  const [metrics, setMetrics] = useState(null);
+  const [weeklyData, setWeeklyData] = useState([]);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([api.analyticsOverview(), api.analyticsWeekly(7)])
+      .then(([overview, weekly]) => {
+        if (!active) return;
+        setMetrics(overview);
+        setWeeklyData(weekly.weekly || []);
+      })
+      .catch((error) => {
+        if (active) setLoadError(error.message || "Impact data could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const stats = metrics ? [
+    { icon: Package, val: Number(metrics.meals_provided) || 0, suffix: "", label: "Meals rescued" },
+    { icon: Building2, val: Number(metrics.verified_ngos) || 0, suffix: "", label: "Verified NGOs" },
+    { icon: Truck, val: Number(metrics.completed_donations) || 0, suffix: "", label: "Completed deliveries" },
+    { icon: Users, val: Number(metrics.active_volunteers) || 0, suffix: "", label: "Active volunteers" },
+    { icon: Leaf, val: Number(metrics.food_rescued_kg_estimate) || 0, suffix: " kg", decimals: 2, label: "Estimated food rescued" },
+    { icon: TrendingUp, val: Number(metrics.completion_rate) || 0, suffix: "%", decimals: 2, label: "Donation completion rate" },
+  ] : [];
   return (
     <PageShell go={go} toast={toast} isLoggedIn={isLoggedIn} onSignOut={onSignOut} page="impact-report">
       <PageHero eyebrow="Impact Report" title="What the network has rescued so far." sub="Aggregate numbers across every donor, NGO, and volunteer on ResQBite." />
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px 70px" }}>
+        {loadError && <div role="alert" style={{ color: T.danger, marginBottom: 18 }}>{loadError}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18, marginBottom: 40 }} className="rq-3col">
-          {stats.map((s, i) => (
-            <div key={i} style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 22 }}>
+          {loading ? [0, 1, 2, 3, 4, 5].map((item) => (
+            <div key={item} style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 22 }}>
+              <Skeleton h={72} />
+            </div>
+          )) : stats.map((s) => (
+            <div key={s.label} style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 22 }}>
               <s.icon size={20} color={T.primary} style={{ marginBottom: 10 }} />
               <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 26 }}>
                 <CountUp to={s.val} suffix={s.suffix} decimals={s.decimals || 0} />
@@ -2087,21 +2084,25 @@ function ImpactReportPage({ go, toast, isLoggedIn, onSignOut }) {
 
         <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 20, padding: 24 }}>
           <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12 }}>Meals rescued — last 7 days</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={WEEKLY}>
-              <defs>
-                <linearGradient id="gImpact" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={T.primary} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={T.primary} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} stroke={T.sand} />
-              <XAxis dataKey="d" tick={{ fontSize: 11, fill: T.inkSoft }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: T.inkSoft }} axisLine={false} tickLine={false} width={28} />
-              <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${T.sand}`, fontSize: 12 }} />
-              <Area type="monotone" dataKey="meals" stroke={T.primary} strokeWidth={2.5} fill="url(#gImpact)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {loading ? <Skeleton h={220} /> : !weeklyData.some((day) => Number(day.meals) > 0) ? (
+            <div style={{ color: T.inkSoft, fontSize: 13 }}>No completed donations were recorded during this period.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={weeklyData}>
+                <defs>
+                  <linearGradient id="gImpact" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={T.primary} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={T.primary} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke={T.sand} />
+                <XAxis dataKey="d" tick={{ fontSize: 11, fill: T.inkSoft }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: T.inkSoft }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: `1px solid ${T.sand}`, fontSize: 12 }} />
+                <Area type="monotone" dataKey="meals" stroke={T.primary} strokeWidth={2.5} fill="url(#gImpact)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
     </PageShell>
@@ -2151,7 +2152,7 @@ function ImpactMiniCard({ icon: Icon, title, text }) {
   );
 }
 
-function DonateUsPage({ go, toast, isLoggedIn, onSignOut, user, addDonation }) {
+function DonateUsPage({ go, toast, isLoggedIn, onSignOut, user }) {
   const formRef = useRef(null);
   const whereGoesRef = useRef(null);
 
@@ -2161,54 +2162,25 @@ function DonateUsPage({ go, toast, isLoggedIn, onSignOut, user, addDonation }) {
   const [useCustom, setUseCustom] = useState(false);
   const [customAmount, setCustomAmount] = useState("");
   const [frequency, setFrequency] = useState("one-time");
-  const [donorName, setDonorName] = useState("");
-  const [donorEmail, setDonorEmail] = useState("");
-  const [donorPhone, setDonorPhone] = useState("");
+  const [donorName, setDonorName] = useState(user?.name || "");
+  const [donorEmail, setDonorEmail] = useState(user?.email || "");
+  const [donorPhone, setDonorPhone] = useState(user?.phone || "");
   const [subscribeUpdates, setSubscribeUpdates] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("UPI");
   const [errors, setErrors] = useState({});
-  // idle | not-configured | success | error — a real gateway would drive the
-  // last two via handlePaymentSuccess/handlePaymentError below.
+  // Payment processing remains unavailable until a real gateway is configured.
   const [paymentState, setPaymentState] = useState("idle");
-  const [lastTxn, setLastTxn] = useState(null);
 
   // Signed-in-experience state
   const [dismissedGuestPrompt, setDismissedGuestPrompt] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [monthlyConsent, setMonthlyConsent] = useState(false);
 
-  // Auto-populate from the signed-in account — never ask for info the
-  // profile already has. Runs whenever the signed-in user changes.
-  useEffect(() => {
-    if (isLoggedIn && user) {
-      setDonorName(user.name || "");
-      setDonorEmail(user.email || "");
-      setDonorPhone(user.phone || "");
-    }
-  }, [isLoggedIn, user]);
-
   const amount = useCustom ? Number(customAmount) || 0 : selectedAmount;
   const initials = (donorName || user?.name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 
   const pickPreset = (v) => { setUseCustom(false); setSelectedAmount(v); setMonthlyConsent(false); };
   const pickCustom = () => { setUseCustom(true); };
-
-  // --- Integration point -----------------------------------------------
-  // Wire a real payment gateway (Razorpay, Stripe, etc.) here. On success,
-  // call handlePaymentSuccess(txn); on failure/cancel, call handlePaymentError(err).
-  // A real backend must verify the authenticated user server-side and
-  // associate the donation with that account — never trust a user ID
-  // supplied by the frontend.
-  function handlePaymentSuccess(txn) {
-    setLastTxn(txn);
-    setPaymentState("success");
-    addDonation?.({ id: txn.id, amount: txn.amount, frequency, status: "Completed", date: txn.date, method: paymentMethod });
-  }
-  function handlePaymentError(err) {
-    setLastTxn(null);
-    setPaymentState("error");
-  }
-  // -----------------------------------------------------------------------
 
   // Step 1: validate details and move to an explicit confirmation step.
   // Nothing is charged and no recurring donation is created here — the
@@ -2241,53 +2213,6 @@ function DonateUsPage({ go, toast, isLoggedIn, onSignOut, user, addDonation }) {
   };
 
   const useDifferentAccount = () => { onSignOut?.(); go("login"); };
-
-  if (paymentState === "success" && lastTxn) {
-    return (
-      <PageShell go={go} toast={toast} isLoggedIn={isLoggedIn} onSignOut={onSignOut} page="donate-us">
-        <div style={{ maxWidth: 560, margin: "0 auto", padding: "80px 24px 90px", textAlign: "center" }} className="rq-fadeUp">
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-            <CheckCircle2 size={30} color={T.primary} />
-          </div>
-          <h1 style={{ fontFamily: fontDisplay, fontSize: 28, marginBottom: 10, color: T.ink }}>Thank You{donorName ? `, ${donorName}` : ""}!</h1>
-          <p style={{ fontSize: 14, color: T.inkSoft, lineHeight: 1.65, marginBottom: 6 }}>
-            Your ₹{lastTxn.amount} donation helps us continue building this platform and create more resources and initiatives for communities and organizations.
-          </p>
-          <p style={{ fontSize: 13, color: T.inkSoft, marginBottom: 28 }}>Together, we're helping create more opportunities for positive change.</p>
-          <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 20, textAlign: "left", marginBottom: 26 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0" }}><span style={{ color: T.inkSoft }}>Donation amount</span><span style={{ fontWeight: 700 }}>₹{lastTxn.amount}</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0" }}><span style={{ color: T.inkSoft }}>Transaction ID</span><span style={{ fontFamily: fontMono, fontWeight: 700 }}>{lastTxn.id}</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0" }}><span style={{ color: T.inkSoft }}>Date</span><span style={{ fontWeight: 700 }}>{lastTxn.date}</span></div>
-          </div>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <GhostButton onClick={() => toast("Downloading receipt (demo)")}>Download Receipt</GhostButton>
-            <GhostButton onClick={() => toast("Browse organizations directory")}>Explore NGOs</GhostButton>
-            <GhostButton onClick={() => go("landing")}>Back to Home</GhostButton>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  if (paymentState === "error") {
-    return (
-      <PageShell go={go} toast={toast} isLoggedIn={isLoggedIn} onSignOut={onSignOut} page="donate-us">
-        <div style={{ maxWidth: 520, margin: "0 auto", padding: "80px 24px 90px", textAlign: "center" }} className="rq-fadeUp">
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FBE4E4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-            <XCircle size={30} color={T.danger} />
-          </div>
-          <h1 style={{ fontFamily: fontDisplay, fontSize: 26, marginBottom: 10, color: T.ink }}>Payment Unsuccessful</h1>
-          <p style={{ fontSize: 14, color: T.inkSoft, lineHeight: 1.65, marginBottom: 26 }}>
-            We couldn't complete your donation. No successful donation has been recorded. Please try again or use another payment method.
-          </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <PrimaryButton onClick={resetForm}>Try Again</PrimaryButton>
-            <GhostButton onClick={resetForm}>Back to Donation</GhostButton>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
 
   return (
     <PageShell go={go} toast={toast} isLoggedIn={isLoggedIn} onSignOut={onSignOut} page="donate-us">
@@ -2391,7 +2316,7 @@ function DonateUsPage({ go, toast, isLoggedIn, onSignOut, user, addDonation }) {
                 <PrimaryButton full icon={ArrowRight} onClick={handleConfirmDonate} style={frequency === "monthly" && !monthlyConsent ? { opacity: 0.5, cursor: "not-allowed", boxShadow: "none" } : {}}>
                   {`Confirm & Donate ₹${amount}`}
                 </PrimaryButton>
-                <GhostButton full style={{ marginTop: 10 }} onClick={() => setShowConfirm(false)}>Edit Details</GhostButton>
+                <GhostButton full style={{ marginTop: 10 }} onClick={resetForm}>Edit Details</GhostButton>
 
                 {paymentState === "not-configured" && (
                   <div className="rq-fadeUp" style={{ marginTop: 16, background: "#FFF4DC", border: "1px solid #F3DFA8", borderRadius: 12, padding: 14, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -2567,10 +2492,10 @@ function AuthShell({ children, go, illustrationTitle, illustrationSub }) {
           </div>
         </div>
         <div style={{ position: "relative", display: "flex", gap: 26 }}>
-          {[["12.4K", "meals"], ["380", "orgs"], ["4.9★", "rating"]].map(([n, l], i) => (
-            <div key={i}>
-              <div style={{ color: T.white, fontFamily: fontDisplay, fontWeight: 700, fontSize: 20 }}>{n}</div>
-              <div style={{ color: "rgba(255,255,255,.65)", fontSize: 11 }}>{l}</div>
+          {["Donors", "Volunteers", "Organizations"].map((role) => (
+            <div key={role}>
+              <div style={{ color: T.white, fontFamily: fontDisplay, fontWeight: 700, fontSize: 20 }}>{role}</div>
+              <div style={{ color: "rgba(255,255,255,.65)", fontSize: 11 }}>ResQBite roles</div>
             </div>
           ))}
         </div>
@@ -2588,10 +2513,8 @@ function AuthShell({ children, go, illustrationTitle, illustrationSub }) {
 }
 
 function InputField({ icon: Icon, label, type = "text", value, onChange, placeholder, right, id, name, error, min, step, onClick, inputRef, required, inputMode }) {
-  // Fall back to a stable, unique id derived from the label so every
-  // field has a real id/name even if the caller didn't pass one.
-  const autoId = useRef(`rq-field-${label ? label.toLowerCase().replace(/[^a-z0-9]+/g, "-") : Math.random().toString(36).slice(2)}`);
-  const fieldId = id || autoId.current;
+  const generatedId = useId();
+  const fieldId = id || `rq-field-${generatedId}`;
   const fieldName = name || fieldId;
   const isDateTime = type === "date" || type === "time" || type === "datetime-local";
   return (
@@ -2709,9 +2632,7 @@ function Login({ go, toast, onSignIn }) {
     window.google.accounts.id.prompt();
   };
 
-  // Looks up the account this email actually signed up with (saved by
-  // Signup) so login routes to that account's real role — falling back
-  // to the sample donor account only when no matching account is found.
+  // The API response supplies the account's actual database role.
   const handleLogin = async () => {
     if (loggingIn) return;
 
@@ -3408,6 +3329,59 @@ function MiniStat({ icon: Icon, label, value }) {
    LIVE TRACKING PAGE
 ============================================================= */
 
+const TRACKING_STATUS_LABELS = {
+  pending: "Pending",
+  accepted: "Accepted",
+  assigned: "Assigned",
+  pickup_started: "Pickup started",
+  picked_up: "Picked Up",
+  in_transit: "In transit",
+  delivered: "Delivered",
+  out_for_delivery: "Out for delivery",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  expired: "Expired",
+};
+const TRACKING_STATUS_ORDER = ["pending", "accepted", "assigned", "pickup_started", "picked_up", "in_transit", "delivered", "completed"];
+const TRACKING_STATUS_ICONS = {
+  pending: PlusCircle,
+  accepted: CheckCircle2,
+  assigned: Truck,
+  pickup_started: Navigation,
+  picked_up: Package,
+  in_transit: Truck,
+  delivered: Award,
+  cancelled: XCircle,
+  expired: AlertCircle,
+};
+
+function buildTrackingTimeline(donation, timeline) {
+  if (!Array.isArray(timeline)) return [];
+
+  return timeline.map((track) => {
+    const isDone = donation.status !== track.status || timeline.some((item) =>
+      TRACKING_STATUS_ORDER.indexOf(item.status) > TRACKING_STATUS_ORDER.indexOf(track.status)
+    );
+    const isActive = donation.status === track.status;
+
+    return {
+      label: TRACKING_STATUS_LABELS[track.status] || track.status,
+      icon: TRACKING_STATUS_ICONS[track.status] || Package,
+      done: isDone || isActive,
+      active: isActive,
+      time: track.created_at ? new Date(track.created_at).toLocaleTimeString() : "Time unavailable",
+      note: track.note,
+    };
+  });
+}
+
+function calculateTrackingProgress(status) {
+  if (!status || status === "cancelled" || status === "expired") return 0;
+  const index = TRACKING_STATUS_ORDER.indexOf(status);
+  if (index < 0) return 0;
+  return Math.round((index / (TRACKING_STATUS_ORDER.length - 1)) * 100);
+}
+
 function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) {
   const { user } = useCurrentUser();
   const [loading, setLoading] = useState(true);
@@ -3420,68 +3394,9 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   const [generatingToken, setGeneratingToken] = useState(false);
   const pollIntervalRef = useRef(null);
   
-  // Map status to human-readable labels
-  const STATUS_LABELS = {
-    pending: "Pending",
-    accepted: "Accepted",
-    assigned: "Assigned",
-    pickup_started: "Pickup started",
-    picked_up: "Picked Up",
-    in_transit: "In transit",
-    delivered: "Delivered",
-    out_for_delivery: "Out for delivery",
-    completed: "Completed",
-    cancelled: "Cancelled",
-    expired: "Expired",
-  };
-
-  // Status progression for progress calculation
-  const STATUS_ORDER = ["pending", "accepted", "assigned", "pickup_started", "picked_up", "in_transit", "delivered", "completed"];
-  const STATUS_ICONS = {
-    pending: PlusCircle,
-    accepted: CheckCircle2,
-    assigned: Truck,
-    pickup_started: Navigation,
-    picked_up: Package,
-    in_transit: Truck,
-    delivered: Award,
-    cancelled: XCircle,
-    expired: AlertCircle,
-  };
-
-  // Build timeline events from tracking data
-  const buildTimeline = (donation, timeline) => {
-    if (!timeline || !Array.isArray(timeline)) return [];
-    
-    return timeline.map((track) => {
-      const isDone = donation.status !== track.status || timeline.some(t => 
-        STATUS_ORDER.indexOf(t.status) > STATUS_ORDER.indexOf(track.status)
-      );
-      const isActive = donation.status === track.status;
-      
-      return {
-        label: STATUS_LABELS[track.status] || track.status,
-        icon: STATUS_ICONS[track.status] || Package,
-        done: isDone || isActive,
-        active: isActive,
-        time: track.created_at ? new Date(track.created_at).toLocaleTimeString() : "Time unavailable",
-        note: track.note,
-      };
-    });
-  };
-
-  // Calculate progress from status
-  const calculateProgress = (status) => {
-    if (!status || status === "cancelled" || status === "expired") return 0;
-    const idx = STATUS_ORDER.indexOf(status);
-    if (idx < 0) return 0;
-    return Math.round((idx / (STATUS_ORDER.length - 1)) * 100);
-  };
-
   // Fetch tracking data
   const fetchTrackingData = useCallback(async () => {
     if (!trackingDonationId) {
-      setLoading(false);
       return;
     }
 
@@ -3490,9 +3405,9 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
       if (data.success === false) throw new Error(data.message || "Failed to load tracking data");
       
       setTracked(data);
-      const events = buildTimeline(data.donation, data.timeline);
+      const events = buildTrackingTimeline(data.donation, data.timeline);
       setTimelineEvents(events);
-      const prog = calculateProgress(data.donation.status);
+      const prog = calculateTrackingProgress(data.donation.status);
       setProgress(prog);
       setError(null);
       setLoading(false);
@@ -3508,7 +3423,11 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
 
   // Initial fetch
   useEffect(() => {
-    fetchTrackingData();
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void fetchTrackingData();
+    });
+    return () => { active = false; };
   }, [fetchTrackingData]);
 
   // Live polling every 5 seconds
@@ -3526,11 +3445,12 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
   }, [trackingDonationId, isLoggedIn, fetchTrackingData]);
 
   // Stop polling when delivered or cancelled
+  const trackedStatus = tracked?.donation?.status;
   useEffect(() => {
-    if (tracked && ["completed", "cancelled"].includes(tracked.donation.status)) {
+    if (["completed", "cancelled"].includes(trackedStatus)) {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     }
-  }, [tracked?.donation?.status]);
+  }, [trackedStatus]);
 
   const donation = tracked?.donation;
   const volunteer = tracked?.volunteer;
@@ -3611,7 +3531,7 @@ function TrackingPage({ go, toast, isLoggedIn, onSignOut, trackingDonationId }) 
         <Reveal style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
           <div>
             <Pill tone="gold"><Truck size={12} /> Live rescue #{donation.id.slice(0, 8)}</Pill>
-            <h1 style={{ fontFamily: fontDisplay, fontSize: 28, marginTop: 10, color: T.ink }}>{STATUS_LABELS[donation.status] || donation.status}</h1>
+            <h1 style={{ fontFamily: fontDisplay, fontSize: 28, marginTop: 10, color: T.ink }}>{TRACKING_STATUS_LABELS[donation.status] || donation.status}</h1>
           </div>
           {isLoggedIn && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.white, border: `1px solid ${T.sand}`, borderRadius: 14, padding: "10px 16px" }}>
@@ -3813,23 +3733,10 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
   // grows the row and drags the pie chart / activity feed taller.
   const [showAllDonations, setShowAllDonations] = useState(false);
   const DONATIONS_PREVIEW_COUNT = 3;
-  const listSectionRef = useRef(null);
-  const impactSectionRef = useRef(null);
 
   useEffect(() => {
-    if (isOrg) {
-      setLoadingOverview(orgData.loading);
-      setLoadingWeekly(orgData.loading);
-      setLoadingFoodMix(orgData.loading);
-      setLoadingStatus(orgData.loading);
-      setDataError(orgData.error);
-      return;
-    }
+    if (isOrg) return;
     let cancelled = false;
-    setLoadingOverview(true);
-    setLoadingWeekly(true);
-    setLoadingFoodMix(true);
-    setLoadingStatus(true);
     Promise.all([
       authenticatedRequest("/dashboard"),
       authenticatedRequest(isAdmin ? "/analytics/admin/dashboard/" : "/analytics/overview/"),
@@ -3896,8 +3803,13 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
       });
 
     return () => { cancelled = true; };
-  }, [isOrg, isAdmin, orgData.error, orgData.loading, user?.id]);
+  }, [isOrg, isAdmin, user?.id]);
 
+  const pageDataError = isOrg ? orgData.error : dataError;
+  const pageLoadingOverview = isOrg ? orgData.loading : loadingOverview;
+  const pageLoadingWeekly = isOrg ? orgData.loading : loadingWeekly;
+  const pageLoadingFoodMix = isOrg ? orgData.loading : loadingFoodMix;
+  const pageLoadingStatus = isOrg ? orgData.loading : loadingStatus;
   const weeklyChartData = isOrg ? orgData.weekly.weekly : weeklyData;
   const foodMixChartData = isOrg ? orgData.categories : foodMixData;
   const statusChartData = isOrg ? orgData.statusBreakdown : statusData;
@@ -3924,9 +3836,6 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
     { icon: Users, label: "Meals donated", value: dashboardData.stats.mealsDonated, delta: `${dashboardData.weeklyChange || 0}% this week`, color: T.accent },
     { icon: Award, label: "Rescue points", value: dashboardData.stats.rescuePoints, delta: dashboardData.stats.tier, color: T.primaryD },
   ] : []);
-
-  const scrollToList = () => { setShowAllDonations(true); listSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-  const scrollToImpact = () => impactSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const quickActions = isOrg ? [
     { icon: Package, label: "Find Food", act: () => go("available-food") },
@@ -3958,13 +3867,13 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
                 font so they never dominate the header like a logo. */}
             <h1 style={{ fontFamily: fontDisplay, fontSize: isOrg && (orgData.organization?.name || "").length > 7 ? 22 : 30, color: T.ink }}>{isOrg ? (orgData.organization?.name || "Organization") : firstNameOf(user)} 👋</h1>
           </div>
-          {dataError && (
+          {pageDataError && (
             <div role="alert" style={{ background: "#FBE4E4", color: T.danger, borderRadius: 12, padding: 12, marginBottom: 18 }}>
-              Dashboard data could not be loaded: {dataError}
+              Dashboard data could not be loaded: {pageDataError}
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {!loadingOverview && isLive && (
+            {!pageLoadingOverview && isLive && (
               <Pill tone="primary">
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.primary, display: "inline-block" }} />
                 Live data
@@ -4008,7 +3917,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 22 }} className="rq-4col">
           {stats.map((s, i) => (
             <Reveal key={i} index={i} className="rq-card-hover" style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 18, padding: 18 }}>
-              {loadingOverview ? <Skeleton h={70} /> : (
+              {pageLoadingOverview ? <Skeleton h={70} /> : (
                 <div>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: T.primaryL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
                     <s.icon size={17} color={s.color} />
@@ -4029,7 +3938,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
               <div style={{ fontWeight: 800, fontSize: 15 }}>{isOrg ? "Food received this week" : "Meals rescued this week"}</div>
               <Pill tone="primary"><TrendingUp size={11} /> {weeklyPctChange >= 0 ? "+" : ""}{weeklyPctChange}%</Pill>
             </div>
-            {loadingWeekly ? <Skeleton h={200} /> : (
+            {pageLoadingWeekly ? <Skeleton h={200} /> : (
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={weeklyChartData}>
                   <defs>
@@ -4064,7 +3973,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
       </div>
 
       {/* Surplus food / donations list, category mix & recent activity */}
-      <div ref={listSectionRef} style={{ width: "100%", padding: "0 24px 80px" }}>
+      <div style={{ width: "100%", padding: "0 24px 80px" }}>
         {/* alignItems: "stretch" keeps both columns the same height — the
             left "My Requests"/"Donations" card and the right-hand stack
             (pie chart + recent activity) end at the same bottom edge
@@ -4078,7 +3987,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
             {statusChartData.length > 0 && (
               <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 20, padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>{isOrg ? "Request status breakdown" : "Donation pipeline"}</div>
-                {loadingStatus ? <Skeleton h={160} /> : (
+                {pageLoadingStatus ? <Skeleton h={160} /> : (
                   <ResponsiveContainer width="100%" height={160}>
                     <BarChart data={statusChartData}>
                       <CartesianGrid vertical={false} stroke={T.sand} />
@@ -4203,7 +4112,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
             {/* PIE */}
             <div style={{ background: T.white, border: `1px solid ${T.sand}`, borderRadius: 20, padding: 20, display: "flex", flexDirection: "column", flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>{isOrg ? "Food received" : "Donation mix"}</div>
-              {loadingFoodMix ? <Skeleton h={140} /> : foodMixChartData.length === 0 ? (
+              {pageLoadingFoodMix ? <Skeleton h={140} /> : foodMixChartData.length === 0 ? (
                 <div style={{ fontSize: 12.5, color: T.inkSoft, padding: "20px 0" }}>No deliveries yet — this fills in once food has been received.</div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -4247,7 +4156,7 @@ function DashboardPage({ go, toast, isLoggedIn, onSignOut }) {
       {/* ORGANIZATION IMPACT — total food received across all requests,
           not just this week's activity. Org accounts only. */}
       {isOrg && (
-        <div ref={impactSectionRef} style={{ width: "100%", padding: "0 24px 80px" }}>
+        <div style={{ width: "100%", padding: "0 24px 80px" }}>
           <Reveal style={{ background: T.primaryD, borderRadius: 24, padding: 28, color: T.white }}>
             <div style={{ fontFamily: fontDisplay, fontSize: 20, marginBottom: 18 }}>Your Food Impact</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }} className="rq-4col">
@@ -4461,13 +4370,9 @@ function OrgHistoryPage({ go, toast, isLoggedIn, onSignOut }) {
    food themselves.
 
    DATA SOURCE
-   1) Tries the real backend first: RESQBITE_API_URL + /volunteer/*
-   2) If the backend isn't reachable, falls back to this browser's
-      persistent key-value storage (window.storage) scoped to the
-      signed-in volunteer — a real, durable store, not an in-memory
-      demo array.
-   3) If there is genuinely nothing there yet, the UI shows an
-      empty state. Nothing on this page is hardcoded/seeded/fake.
+   Volunteer profiles, tasks, history, rewards, and notifications
+   are loaded from the authenticated Django API. API failures remain
+   visible to the user and never fall back to browser-stored records.
 ============================================================= */
 
 /* ============================================================
@@ -4712,7 +4617,13 @@ function useVolunteerData(user) {
     }
   }, [normalizeTask, user]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void load();
+    });
+    return () => { active = false; };
+  }, [load]);
   useEffect(() => {
     const interval = window.setInterval(() => { if (live) load({ silent: true }); }, 25000);
     return () => window.clearInterval(interval);
@@ -5024,17 +4935,19 @@ function TrackTab({ tasks, selectedId, setSelectedId }) {
   const [volunteerLoc, setVolunteerLoc] = useState(null);
   const [geoError, setGeoError] = useState(null);
   const task = tasks.find((t) => t.id === selectedId) || tasks[0];
+  const taskId = task?.id;
+  const locationUnsupported = typeof navigator === "undefined" || !navigator.geolocation;
 
   useEffect(() => {
-    if (!task) return;
-    if (!navigator.geolocation) { setGeoError("Geolocation isn't supported on this device."); return; }
+    if (!taskId) return;
+    if (locationUnsupported) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => { setVolunteerLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGeoError(null); },
       (err) => setGeoError(err.message || "Location permission denied."),
       { enableHighAccuracy: true, maximumAge: 15000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [task?.id]);
+  }, [taskId, locationUnsupported]);
 
   if (!tasks.length) {
     return <Card><EmptyState icon={Navigation} title="Nothing to track yet" sub="Accept a pickup and start the delivery workflow — live tracking appears here once a task is in progress." /></Card>;
@@ -5090,7 +5003,9 @@ function TrackTab({ tasks, selectedId, setSelectedId }) {
                 {volunteerLoc ? (
                   <div style={{ fontSize: 12.5, fontFamily: fontMono }}>{volunteerLoc.lat.toFixed(4)}, {volunteerLoc.lng.toFixed(4)}</div>
                 ) : (
-                  <div style={{ fontSize: 12.5, color: T.inkSoft }}>{geoError || "Locating…"}</div>
+                  <div style={{ fontSize: 12.5, color: T.inkSoft }}>
+                    {geoError || (locationUnsupported ? "Geolocation isn't supported on this device." : "Locating…")}
+                  </div>
                 )}
               </div>
             </div>
@@ -5150,17 +5065,19 @@ function VolunteerDashboard({ go, user, onSignOut }) {
   // than editing data.profile directly on every keystroke) and only
   // written back via data.updateProfile on Save, so a stray keystroke
   // can't half-save a profile.
-  const [editName, setEditName] = useState(data.profile.name || "");
-  const [editPhone, setEditPhone] = useState(data.profile.phone || "");
+  const [editName, setEditName] = useState(null);
+  const [editPhone, setEditPhone] = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
-  useEffect(() => {
-    setEditName(data.profile.name || "");
-    setEditPhone(data.profile.phone || "");
-  }, [data.profile.name, data.profile.phone]);
+  const profileName = editName ?? data.profile.name ?? "";
+  const profilePhone = editPhone ?? data.profile.phone ?? "";
   const saveProfile = async () => {
     setSavingProfile(true);
     setActionError("");
-    try { await data.updateProfile({ name: editName.trim(), phone: editPhone.trim() }); }
+    try {
+      await data.updateProfile({ name: profileName.trim(), phone: profilePhone.trim() });
+      setEditName(null);
+      setEditPhone(null);
+    }
     catch (error) { setActionError(error.message || "Could not save profile."); }
     finally { setSavingProfile(false); }
   };
@@ -5377,8 +5294,8 @@ function VolunteerDashboard({ go, user, onSignOut }) {
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
                   <span style={{ color: T.inkSoft }}>Email</span><b>{data.profile.email}</b>
                 </div>
-                <InputField icon={User} label="Full name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Your name" />
-                <InputField icon={Phone} label="Phone" type="tel" inputMode="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Your phone number" />
+                <InputField icon={User} label="Full name" value={profileName} onChange={(e) => setEditName(e.target.value)} placeholder="Your name" />
+                <InputField icon={Phone} label="Phone" type="tel" inputMode="tel" value={profilePhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Your phone number" />
                 <VDPrimaryButton icon={savingProfile ? Loader2 : CheckCircle2} disabled={savingProfile} onClick={saveProfile}>{savingProfile ? "Saving…" : "Save Profile"}</VDPrimaryButton>
                 <VDGhostButton onClick={handleAvailabilityToggle}>{data.profile.available ? "Set Unavailable" : "Set Available"}</VDGhostButton>
               </Card>
@@ -5475,7 +5392,6 @@ export default function ResQBiteApp() {
   useEffect(() => {
     let cancelled = false;
     if (!isLoggedIn || !["donor", "org"].includes(user?.role)) {
-      setFoodDonations([]);
       return () => { cancelled = true; };
     }
     authenticatedRequest("/donations/my/")
@@ -5483,6 +5399,7 @@ export default function ResQBiteApp() {
       .catch(() => { if (!cancelled) setFoodDonations([]); });
     return () => { cancelled = true; };
   }, [isLoggedIn, page, user?.id, user?.role]);
+  const donationsForUser = isLoggedIn && ["donor", "org"].includes(user?.role) ? foodDonations : [];
   // Every navigation (footer links, nav links, buttons, "go" calls
   // anywhere in the app) goes through this single setter, so scrolling
   // to the very top — header included — on every page change is
@@ -5500,8 +5417,8 @@ export default function ResQBiteApp() {
       // donation (or their most recent donation of any status if none
       // are still in progress) so those generic entry points behave
       // like "take me to what I'm currently tracking".
-      const active = foodDonations.find((d) => !["COMPLETED", "CANCELLED"].includes(String(d.status).toUpperCase()));
-      const fallback = active || foodDonations[0];
+      const active = donationsForUser.find((d) => !["COMPLETED", "CANCELLED"].includes(String(d.status).toUpperCase()));
+      const fallback = active || donationsForUser[0];
       if (fallback) setTrackingDonationId(fallback.id);
     }
     setPage(p);

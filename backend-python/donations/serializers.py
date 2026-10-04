@@ -39,7 +39,10 @@ class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.CharField(source="donor.name", read_only=True)
     organization_name = serializers.CharField(source="organization.name", read_only=True, default="")
     organization = serializers.PrimaryKeyRelatedField(
-        queryset=Organization.objects.filter(verification_status=Organization.VERIFICATION_VERIFIED),
+        queryset=Organization.objects.filter(
+            verification_status=Organization.VERIFICATION_VERIFIED,
+            user__is_active=True,
+        ),
         required=True,
     )
 
