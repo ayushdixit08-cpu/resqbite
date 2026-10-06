@@ -5,6 +5,10 @@ export const API_BASE_URL = configuredApiUrl.trim().replace(/\/+$/, "");
 const apiResultCache = new Map();
 const REQUEST_TIMEOUT_MS = 30000;
 
+function getStoredToken() {
+  return localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token");
+}
+
 export class ApiError extends Error {
   constructor(message, { status, url, cause, errors } = {}) {
     super(message, { cause });
@@ -16,7 +20,7 @@ export class ApiError extends Error {
 }
 
 function buildHeaders(headers = {}, body) {
-  const token = localStorage.getItem("resqbite_token") || sessionStorage.getItem("resqbite_token");
+  const token = getStoredToken();
   const isMultipart = typeof FormData !== "undefined" && body instanceof FormData;
   return {
     ...(!isMultipart ? { "Content-Type": "application/json" } : {}),
@@ -31,10 +35,16 @@ export async function apiRequest(path, options = {}) {
       "The Django API URL is not configured. Set VITE_API_BASE_URL to the deployed Django API."
     );
   }
+
+  const token = getStoredToken();
   const url = `${API_BASE_URL}${path}`;
+  const cacheKey = `${path}::${token ?? "anonymous"}`;
   const cacheable = (!options.method || options.method.toUpperCase() === "GET")
-    && !path.startsWith("/auth/");
-  if (cacheable && apiResultCache.has(path)) return apiResultCache.get(path);
+    && !path.startsWith("/auth/")
+    && !token;
+
+  if (cacheable && apiResultCache.has(cacheKey)) return apiResultCache.get(cacheKey);
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const externalSignal = options.signal;
@@ -89,7 +99,7 @@ export async function apiRequest(path, options = {}) {
       const normalized = responseData?.success === true && Object.hasOwn(responseData, "data")
         ? responseData.data
         : responseData;
-      if (cacheable) apiResultCache.set(path, normalized);
+      if (cacheable) apiResultCache.set(cacheKey, normalized);
       return normalized;
     }
 
@@ -127,9 +137,11 @@ export function formatApiError(error, fallback = "The request could not be compl
 
 export function saveAuthToken(token) {
   localStorage.setItem("resqbite_token", token);
+  apiResultCache.clear();
 }
 
 export function clearAuthToken() {
+  apiResultCache.clear();
   localStorage.removeItem("resqbite_token");
   sessionStorage.removeItem("resqbite_token");
 }
